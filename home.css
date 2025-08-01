@@ -4,9 +4,10 @@ body{
 
 #loginbg {
   margin: auto;
+  border-radius: 15px;
   background: white;
   width: 65%;
-  height:200px;
+  height:650px;
 }
 
 #logo {
