@@ -3,10 +3,15 @@ body{
 }
 
 #loginbg {
+  image:"logo.jpg";
   border-radius: 15px;
   background: white;
   padding: 20px; 
-  width: 200px;
-  height: 150px;  
-  font:"Crimson Text"
+  width: 65%;
 }
+
+#lform{
+  font:"Crimson Text";
+
+
+};
