@@ -10,10 +10,8 @@
   <input type="text" id="uname"><br>
   <label for="pass">Password:</label><br>
   <input type="text" id="pass"><br>
-  <input type="li" value="Log In">
+  <input type="label" value="Log In">
 </form> 
-
-<p>If you click the "Submit" button, the form-data will be sent to a page called "/action_page.php".</p>
 
   </body>
 </html>

@@ -3,12 +3,18 @@ body{
 }
 
 #loginbg {
-  image:"logo.jpg";
+  margin: auto;
   border-radius: 15px;
   background: white;
   padding: 20px; 
   width: 65%;
 }
+
+#logo {
+  image:"logo.jpg";
+  margin: auto;
+  width:15%;
+};
 
 #lform{
   font:"Crimson Text";
