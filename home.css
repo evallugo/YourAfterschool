@@ -1,0 +1,156 @@
+/* login page */
+
+box-sizing: border-box;
+
+position: relative;
+width: 1280px;
+height: 832px;
+
+background: #183974;
+
+
+/* login background */
+
+position: absolute;
+width: 1280px;
+height: 832px;
+left: 0px;
+top: 0px;
+
+
+
+/* background */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+
+
+/* outline */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 1132px;
+height: 670px;
+left: 74px;
+top: 81px;
+
+background: #FFFFFF;
+border: 1px solid #FFFFFF;
+border-radius: 25px;
+
+
+/* logo */
+
+position: absolute;
+width: 258px;
+height: 183px;
+left: 511px;
+top: 95px;
+
+background: url(image.png);
+
+
+/* username box */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 706px;
+height: 75px;
+left: 287px;
+top: 341px;
+
+background: #FFFFFF;
+border: 2px solid #5C5B5B;
+border-radius: 10px;
+
+
+/* username box */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 706px;
+height: 75px;
+left: 287px;
+top: 479px;
+
+background: #FFFFFF;
+border: 2px solid #5C5B5B;
+border-radius: 10px;
+
+
+/* username box */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 706px;
+height: 75px;
+left: 287px;
+top: 588px;
+
+background: #DBBA49;
+border: 2px solid #DBBA49;
+border-radius: 10px;
+
+
+/* Username */
+
+position: absolute;
+width: 179px;
+height: 50px;
+left: 287px;
+top: 291px;
+
+font-family: '
+Crimson Text';
+font-style: normal;
+font-weight: 400;
+font-size: 35px;
+line-height: 45px;
+
+color: #000000;
+
+
+
+/* Password */
+
+position: absolute;
+width: 179px;
+height: 50px;
+left: 287px;
+top: 429px;
+
+font-family: 'Crimson Text';
+font-style: normal;
+font-weight: 400;
+font-size: 35px;
+line-height: 45px;
+
+color: #000000;
+
+
+
+/* Sign In */
+
+position: absolute;
+width: 127px;
+height: 50px;
+left: 577px;
+top: 600px;
+
+font-family: 'Crimson Text';
+font-style: normal;
+font-weight: 400;
+font-size: 35px;
+line-height: 45px;
+
+color: #FFFFFF;
+
+border: 1px solid #FFFFFF;

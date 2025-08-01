@@ -1,2 +1,1 @@
-# YourAfterschool
-Inventory Program for YourAfterSchool
+# Your Afterschool -+Inventory Program
