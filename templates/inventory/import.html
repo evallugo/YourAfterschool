@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Import Inventory – YAS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+        <i class="bi bi-upload me-2"></i>Import Inventory Items
+      </h4>
+    </div>
+
+    <div class="row g-4">
+      <!-- Option 1: Upload file -->
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Option 1: Upload Spreadsheet
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Upload a CSV or Excel file with your existing inventory.
+               The system will match columns automatically.</p>
+            <form method="post" enctype="multipart/form-data">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">File (.xlsx or .csv)</label>
+                <input type="file" name="file" class="form-control" accept=".xlsx,.csv" required>
+              </div>
+              <button type="submit" class="btn btn-gold w-100">
+                <i class="bi bi-upload me-1"></i>Import File
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Option 2: Auto-create from lessons -->
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header gold-header">
+            <i class="bi bi-magic"></i> Option 2: Auto-create from Lesson Lists
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">
+              Automatically create inventory records for every unique item that appears in your
+              imported lesson packing lists. Quantities will be set to <strong>0</strong> —
+              you then update the actual counts.
+            </p>
+            <p class="text-muted small">
+              <strong>Best for:</strong> Getting your item list set up quickly after importing
+              the master sheet. You'll still need to count and enter quantities.
+            </p>
+            <form method="post" action="{{ url_for('inventory_auto_create') }}">
+              <button type="submit" class="btn btn-navy w-100">
+                <i class="bi bi-magic me-1"></i>Auto-create from Lesson Items
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template download reference -->
+    <div class="card mt-4">
+      <div class="card-header light-header">
+        <i class="bi bi-info-circle"></i> Spreadsheet Format (Option 1)
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-2">Your spreadsheet should have these column names (names are flexible — we auto-detect):</p>
+        <table class="table table-sm">
+          <thead><tr><th>Column</th><th>Required</th><th>Auto-detected as</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Name</strong></td><td><span class="text-danger">Yes</span></td><td class="text-muted small">name, item name, item</td><td class="text-muted small">Popsicle Sticks</td></tr>
+            <tr><td>Quantity</td><td class="text-muted">No</td><td class="text-muted small">quantity, qty, stock, count</td><td class="text-muted small">150</td></tr>
+            <tr><td>Unit</td><td class="text-muted">No</td><td class="text-muted small">unit, units</td><td class="text-muted small">pcs / bags / sets</td></tr>
+            <tr><td>Location</td><td class="text-muted">No</td><td class="text-muted small">location, loc, shelf, rack</td><td class="text-muted small">Rack B, Shelf 2</td></tr>
+            <tr><td>Category</td><td class="text-muted">No</td><td class="text-muted small">category, categories</td><td class="text-muted small">Art</td></tr>
+            <tr><td>Description</td><td class="text-muted">No</td><td class="text-muted small">description, desc</td><td class="text-muted small">4 inch standard</td></tr>
+            <tr><td>Reusable</td><td class="text-muted">No</td><td class="text-muted small">reusable, is_reusable</td><td class="text-muted small">yes / no</td></tr>
+          </tbody>
+        </table>
+        <div class="alert alert-info py-2 mb-0 small">
+          <i class="bi bi-lightbulb me-1"></i>
+          If an item name already exists, the import will <strong>add</strong> to the existing quantity rather than replace it.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

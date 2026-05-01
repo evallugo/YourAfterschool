@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block title %}User Management – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-people-fill me-2"></i>User Management
+  </h4>
+  <button class="btn btn-gold no-print" data-bs-toggle="modal" data-bs-target="#addUserModal">
+    <i class="bi bi-person-plus me-1"></i>Add User
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Role</th>
+            <th>School</th>
+            <th>Status</th>
+            <th class="no-print">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="fw-semibold">{{ u.username }}</td>
+          <td>{{ u.full_name or '—' }}</td>
+          <td>
+            <span class="role-badge" style="{% if u.role == 'admin' %}background:var(--navy);color:white;{% elif u.role == 'site_director' %}background:#6f42c1;color:white;{% endif %}">
+              {{ u.role.replace('_',' ').title() }}
+            </span>
+          </td>
+          <td class="small text-muted">{{ u.school_name or '—' }}</td>
+          <td>
+            <span class="status-badge {% if u.active %}s-packed{% else %}s-shelved{% endif %}">
+              {{ 'Active' if u.active else 'Inactive' }}
+            </span>
+          </td>
+          <td class="no-print">
+            <div class="d-flex gap-1 flex-wrap">
+              <!-- Assign school -->
+              <button class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#assignSchoolModal"
+                      data-user-id="{{ u.id }}"
+                      data-username="{{ u.username }}"
+                      data-school-id="{{ u.school_id or '' }}"
+                      onclick="prefillAssignSchool(this)"
+                      title="Assign School">
+                <i class="bi bi-building"></i>
+              </button>
+              <!-- Reset password -->
+              <button class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#resetPwModal"
+                      data-user-id="{{ u.id }}"
+                      data-username="{{ u.username }}"
+                      onclick="prefillReset(this)"
+                      title="Reset Password">
+                <i class="bi bi-key"></i>
+              </button>
+              <!-- Toggle active -->
+              {% if u.id != current_user.id %}
+              <form method="post" action="{{ url_for('admin_users_toggle', user_id=u.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-warning"
+                        data-confirm="{{ 'Deactivate' if u.active else 'Activate' }} user {{ u.username }}?"
+                        title="{{ 'Deactivate' if u.active else 'Activate' }}">
+                  <i class="bi bi-{{ 'pause' if u.active else 'play' }}"></i>
+                </button>
+              </form>
+              <!-- Delete -->
+              <form method="post" action="{{ url_for('admin_users_delete', user_id=u.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-danger"
+                        data-confirm="Permanently delete user {{ u.username }}?"
+                        title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Role descriptions -->
+<div class="card mt-3">
+  <div class="card-header light-header">
+    <i class="bi bi-info-circle"></i> Role Permissions
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="fw-semibold mb-1">Admin</div>
+        <div class="text-muted small">Full access — manage users, all CRUD operations, delete items.</div>
+      </div>
+      <div class="col-md-3">
+        <div class="fw-semibold mb-1">Packer</div>
+        <div class="text-muted small">Import sheets, manage packing, manage inventory, log arriving orders.</div>
+      </div>
+      <div class="col-md-3">
+        <div class="fw-semibold mb-1">Site Director</div>
+        <div class="text-muted small">Sees only their assigned school's lesson deliveries and returns. Must be assigned to a school.</div>
+      </div>
+      <div class="col-md-3">
+        <div class="fw-semibold mb-1">Teacher</div>
+        <div class="text-muted small">View lesson packing checklists for their classes. (future)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--navy);color:white;">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add User</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('admin_users_add') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+            <input type="text" name="username" class="form-control" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Full Name</label>
+            <input type="text" name="full_name" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+            <input type="password" name="password" class="form-control" required autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Role</label>
+            <select name="role" class="form-select">
+              <option value="packer">Packer</option>
+              <option value="site_director">Site Director</option>
+              <option value="teacher">Teacher</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">School <span class="text-muted fw-normal">(for site directors / teachers)</span></label>
+            <select name="school_id" class="form-select">
+              <option value="">— None —</option>
+              {% for s in schools %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-gold">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Assign School Modal -->
+<div class="modal fade" id="assignSchoolModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--navy);color:white;">
+        <h5 class="modal-title"><i class="bi bi-building me-2"></i>Assign School</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="assignSchoolForm">
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Assigning school for: <strong id="assign-username"></strong>
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">School</label>
+            <select name="school_id" class="form-select" id="assign-school-select">
+              <option value="">— None —</option>
+              {% for s in schools %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-gold">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPwModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--navy);color:white;">
+        <h5 class="modal-title"><i class="bi bi-key me-2"></i>Reset Password</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="resetPwForm">
+        <div class="modal-body">
+          <p class="text-muted">Setting new password for: <strong id="reset-username"></strong></p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">New Password <span class="text-danger">*</span></label>
+            <input type="password" name="password" class="form-control" required autocomplete="new-password">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-gold">Reset Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function prefillReset(btn) {
+  var userId   = btn.dataset.userId;
+  var username = btn.dataset.username;
+  document.getElementById('reset-username').textContent = username;
+  document.getElementById('resetPwForm').action = '/admin/users/' + userId + '/reset-password';
+}
+function prefillAssignSchool(btn) {
+  var userId   = btn.dataset.userId;
+  var username = btn.dataset.username;
+  var schoolId = btn.dataset.schoolId;
+  document.getElementById('assign-username').textContent = username;
+  document.getElementById('assignSchoolForm').action = '/admin/users/' + userId + '/assign-school';
+  var sel = document.getElementById('assign-school-select');
+  if (sel) sel.value = schoolId;
+}
+</script>
+{% endblock %}

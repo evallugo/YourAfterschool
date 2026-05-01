@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% block title %}Inventory – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-boxes me-2"></i>Inventory
+  </h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('manage_categories') }}" class="btn btn-outline-secondary btn-sm no-print">
+      <i class="bi bi-tags me-1"></i>Categories
+    </a>
+    <a href="{{ url_for('inventory_import') }}" class="btn btn-outline-secondary btn-sm no-print">
+      <i class="bi bi-upload me-1"></i>Bulk Import
+    </a>
+    <a href="{{ url_for('inventory_add') }}" class="btn btn-gold no-print">
+      <i class="bi bi-plus-lg me-1"></i>Add Item
+    </a>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="page-toolbar no-print">
+  <form class="d-flex align-items-center gap-2 flex-grow-1" method="get">
+    <div class="input-group" style="max-width:320px;">
+      <span class="input-group-text bg-white border-end-0">
+        <i class="bi bi-search text-muted"></i>
+      </span>
+      <input type="text" name="q" class="form-control border-start-0 ps-0"
+             placeholder="Search items..." value="{{ q }}"
+             id="inventory-search">
+    </div>
+    <input type="hidden" name="cat" value="{{ cat_id }}">
+    <button type="submit" class="btn btn-navy btn-sm">Search</button>
+    {% if q or cat_id %}
+    <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+  <div class="toolbar-divider"></div>
+  <span class="text-muted small">{{ total }} item{{ 's' if total != 1 }}</span>
+</div>
+
+<div class="row g-3">
+  <!-- Category Sidebar -->
+  <div class="col-lg-2 sidebar-col no-print">
+    <div class="card">
+      <div class="card-header py-2" style="font-size:.85rem;">
+        <i class="bi bi-funnel"></i> Filter
+      </div>
+      <div class="card-body p-2">
+        <div class="list-group cat-sidebar">
+          <a href="#" class="list-group-item cat-filter-link {% if not cat_id %}active{% endif %}"
+             data-cat-id="">
+            All Items
+          </a>
+          {% for cat in categories %}
+          <a href="#" class="list-group-item cat-filter-link {% if cat_id == cat.id|string %}active{% endif %}"
+             data-cat-id="{{ cat.id }}">
+            {{ cat.name }}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Items Table -->
+  <div class="col-lg-10">
+    <div class="card">
+      <div class="card-body p-0">
+        {% if items %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Category</th>
+                <th>Unit</th>
+                <th>Qty</th>
+                <th>Location</th>
+                <th class="no-print">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ item.name }}</div>
+                {% if item.subcategory_name %}
+                <div class="text-muted" style="font-size:.78rem;">{{ item.subcategory_name }}</div>
+                {% endif %}
+                {% if item.is_reusable %}
+                <span class="return-tag">Reusable</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ item.category_names or '—' }}</td>
+              <td class="small">{{ item.unit }}</td>
+              <td>
+                <div class="qty-badge {% if item.quantity == 0 %}empty{% elif item.quantity <= 10 %}low{% else %}good{% endif %}"
+                     data-qty-item="{{ item.id }}">
+                  {{ item.quantity }}
+                </div>
+              </td>
+              <td class="small text-muted">{{ item.location or '—' }}</td>
+              <td class="no-print">
+                <div class="d-flex gap-1 align-items-center">
+                  <!-- Quick adjust -->
+                  <button class="btn btn-sm btn-outline-secondary qty-adjust-btn"
+                          data-item-id="{{ item.id }}" data-delta="-1" title="Remove 1">
+                    <i class="bi bi-dash"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary qty-adjust-btn"
+                          data-item-id="{{ item.id }}" data-delta="1" title="Add 1">
+                    <i class="bi bi-plus"></i>
+                  </button>
+                  <a href="{{ url_for('inventory_edit', item_id=item.id) }}"
+                     class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  {% if current_user.role == 'admin' %}
+                  <form method="post" action="{{ url_for('inventory_delete', item_id=item.id) }}"
+                        class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            data-confirm="Delete '{{ item.name }}'? This cannot be undone.">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total > per_page %}
+        <div class="d-flex justify-content-center py-3 no-print">
+          <nav>
+            <ul class="pagination pagination-sm mb-0">
+              {% for p in range(1, (total // per_page) + 2) %}
+              {% if p <= (total + per_page - 1) // per_page %}
+              <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('inventory', q=q, cat=cat_id, page=p) }}">{{ p }}</a>
+              </li>
+              {% endif %}
+              {% endfor %}
+            </ul>
+          </nav>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-boxes fs-1 d-block mb-2 opacity-25"></i>
+          {% if q or cat_id %}
+          No items match your search.
+          <a href="{{ url_for('inventory') }}">Clear filters</a>
+          {% else %}
+          No inventory items yet.
+          <a href="{{ url_for('inventory_add') }}">Add your first item</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

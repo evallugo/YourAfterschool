@@ -1,0 +1,8 @@
+flask
+flask-login
+werkzeug
+pandas
+openpyxl
+qrcode[pil]
+pillow
+gunicorn

@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if item else 'Add' }} Item – YAS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+        {{ 'Edit Item' if item else 'Add Inventory Item' }}
+      </h4>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-4">
+        <form method="post">
+          <!-- Name -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Item Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ item.name if item else '' }}" required>
+          </div>
+
+          <!-- Description -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description</label>
+            <textarea name="description" class="form-control" rows="2">{{ item.description if item else '' }}</textarea>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <!-- Unit -->
+            <div class="col-sm-4">
+              <label class="form-label fw-semibold">Unit</label>
+              <input type="text" name="unit" class="form-control"
+                     value="{{ item.unit if item else 'pcs' }}"
+                     list="unit-options">
+              <datalist id="unit-options">
+                <option value="pcs">
+                <option value="sets">
+                <option value="kits">
+                <option value="bags">
+                <option value="boxes">
+                <option value="rolls">
+                <option value="sheets">
+                <option value="packs">
+                <option value="bottles">
+                <option value="cups">
+                <option value="oz">
+                <option value="lbs">
+                <option value="pairs">
+                <option value="ea">
+              </datalist>
+            </div>
+
+            <!-- Quantity -->
+            <div class="col-sm-4">
+              <label class="form-label fw-semibold">Current Quantity</label>
+              <input type="number" name="quantity" class="form-control" min="0"
+                     value="{{ item.quantity if item else 0 }}">
+            </div>
+
+            <!-- Location -->
+            <div class="col-sm-4">
+              <label class="form-label fw-semibold">Location</label>
+              <input type="text" name="location" class="form-control"
+                     placeholder="e.g. Rack B, Shelf 3"
+                     value="{{ item.location if item else '' }}">
+            </div>
+          </div>
+
+          <!-- Reusable flag -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_reusable" id="is_reusable"
+                     {% if item and item.is_reusable %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="is_reusable">
+                Reusable item (should be returned after lessons)
+              </label>
+            </div>
+          </div>
+
+          <!-- Categories -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Categories</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for cat in categories %}
+              <div class="form-check">
+                <input class="form-check-input cat-checkbox" type="checkbox"
+                       name="categories" value="{{ cat.id }}"
+                       id="cat_{{ cat.id }}"
+                       data-cat-id="{{ cat.id }}"
+                       {% if cat.id|string in selected_cats %}checked{% endif %}>
+                <label class="form-check-label" for="cat_{{ cat.id }}">{{ cat.name }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Subcategory -->
+          {% if subcategories %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Subcategory <span class="text-muted fw-normal">(optional)</span></label>
+            <select name="subcategory_id" id="subcategory_id" class="form-select">
+              <option value="">— None —</option>
+              {% for sc in subcategories %}
+              <option value="{{ sc.id }}"
+                      data-cat-id="{{ sc.category_id }}"
+                      {% if item and item.subcategory_id == sc.id %}selected{% endif %}>
+                {{ sc.cat_name }} › {{ sc.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-gold px-4">
+              <i class="bi bi-check-lg me-1"></i>
+              {{ 'Save Changes' if item else 'Add Item' }}
+            </button>
+            <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

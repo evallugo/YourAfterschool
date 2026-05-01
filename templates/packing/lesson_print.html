@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Packing Sheet – {{ lesson.class_name }} {{ lesson.lesson_name }}</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; margin: 0.5in; }
+    h2 { color: #1E3269; margin-bottom: 4px; }
+    .meta { font-size: 9pt; color: #555; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { background: #1E3269; color: white; padding: 6px 8px; text-align: left; font-size: 9pt; }
+    td { padding: 5px 8px; border-bottom: 1px solid #dee2e6; font-size: 10pt; vertical-align: middle; }
+    tr:nth-child(even) td { background: #f8f9fa; }
+    .return-row td { border-left: 3px solid #F0A500; }
+    .return-badge { background: #F0A500; color: #1a1a1a; font-size: 7.5pt; font-weight: bold;
+                    padding: 1px 6px; border-radius: 8px; }
+    .kit-badge { background: #e8ecf5; color: #1E3269; font-size: 7.5pt;
+                 padding: 1px 6px; border-radius: 8px; }
+    .check-box { width: 14px; height: 14px; border: 1.5px solid #333; display: inline-block; }
+    .footer { margin-top: 24px; font-size: 8pt; color: #888; border-top: 1px solid #dee2e6; padding-top: 8px; }
+    @media print {
+      body { margin: 0.4in; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom:12px;">
+    <button onclick="window.print()" style="padding:6px 18px;background:#1E3269;color:white;border:none;border-radius:6px;cursor:pointer;font-size:10pt;">
+      Print
+    </button>
+    <button onclick="window.close()" style="padding:6px 14px;margin-left:8px;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:10pt;">
+      Close
+    </button>
+  </div>
+
+  <h2>{{ lesson.class_name }}</h2>
+  <div class="meta">
+    <strong>Lesson:</strong> {{ lesson.lesson_name }}
+    {% if lesson.lesson_number %}&nbsp;·&nbsp;<strong>Lesson #{{ lesson.lesson_number }}</strong>{% endif %}
+    {% if lesson.school_name %}&nbsp;·&nbsp;<strong>School:</strong> {{ lesson.school_name }}{% endif %}
+    {% if lesson.teacher_name %}&nbsp;·&nbsp;<strong>Teacher:</strong> {{ lesson.teacher_name }}{% endif %}
+  </div>
+
+  {% set return_items = items | selectattr('return_required') | list %}
+  {% if return_items %}
+  <div style="background:#fff8e1;border-left:3px solid #F0A500;padding:6px 10px;margin-bottom:10px;font-size:9pt;">
+    <strong>Return Required:</strong> Items marked with gold border must be returned to the warehouse.
+  </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px;">Packed</th>
+        <th>Item Description</th>
+        <th style="width:100px;">Qty / Section</th>
+        <th style="width:90px;">Item Size</th>
+        <th style="width:100px;">Kit Type</th>
+        <th style="width:70px;">Return</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for item in items %}
+    <tr class="{% if item.return_required %}return-row{% endif %}">
+      <td class="text-center"><span class="check-box"></span></td>
+      <td>{{ item.item_description }}</td>
+      <td>{{ item.per_section_total or '' }}</td>
+      <td>{{ item.item_size or '' }}</td>
+      <td>
+        {% if item.essentials_type %}
+        <span class="kit-badge">{{ item.essentials_type }}</span>
+        {% endif %}
+      </td>
+      <td class="text-center">
+        {% if item.return_required %}
+        <span class="return-badge">RETURN</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Packing sheet generated &nbsp;·&nbsp; Your After School Inventory System
+    &nbsp;·&nbsp; {{ items|length }} items total
+    {% if return_items %}&nbsp;·&nbsp; {{ return_items|length }} items to return{% endif %}
+  </div>
+</body>
+</html>

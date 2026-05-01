@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block title %}Packing – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-bag-check-fill me-2"></i>Packing
+  </h4>
+</div>
+
+<!-- Toolbar -->
+<div class="page-toolbar no-print">
+  <a href="{{ url_for('packing_import') }}" class="btn btn-navy btn-sm">
+    <i class="bi bi-upload me-1"></i>Import Sheet
+  </a>
+  {% if session.get('last_export') %}
+  <a href="{{ url_for('packing_download_last') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-download me-1"></i>Download Last Excel
+  </a>
+  {% endif %}
+  <div class="toolbar-divider"></div>
+
+  <form class="d-flex gap-2 align-items-center flex-grow-1" method="get">
+    <input type="text" name="q" class="form-control form-control-sm"
+           placeholder="Search lessons..." value="{{ q }}" style="max-width:200px;">
+    <select name="school" class="form-select form-select-sm" style="max-width:180px;">
+      <option value="">All Schools</option>
+      {% for s in schools %}
+      <option value="{{ s.id }}" {% if school_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="class" class="form-select form-select-sm" style="max-width:180px;">
+      <option value="">All Classes</option>
+      {% for c in class_names %}
+      <option value="{{ c.class_name }}" {% if class_name == c.class_name %}selected{% endif %}>{{ c.class_name }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="form-select form-select-sm" style="max-width:160px;">
+      <option value="">All Lessons</option>
+      <option value="unpacked"    {% if status == 'unpacked'    %}selected{% endif %}>Not Started</option>
+      <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>In Progress</option>
+      <option value="packed"      {% if status == 'packed'      %}selected{% endif %}>Done</option>
+    </select>
+    <button type="submit" class="btn btn-navy btn-sm">Filter</button>
+    {% if q or school_id or class_name or status %}
+    <a href="{{ url_for('packing') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="row g-4">
+  <!-- Unavailable / Low Stock panel -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header" style="background:#c0392b;">
+        <i class="bi bi-exclamation-triangle-fill"></i> Items Running Low — Check Before Packing
+      </div>
+      <div class="card-body p-0">
+        {% if low_stock %}
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr><th>Item</th><th>Stock</th></tr>
+          </thead>
+          <tbody>
+          {% for item in low_stock %}
+          <tr>
+            <td class="small fw-semibold">{{ item.name }}</td>
+            <td>
+              <span class="qty-badge {% if item.quantity == 0 %}empty{% else %}low{% endif %}">
+                {{ item.quantity }} {{ item.unit }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-check-circle-fill d-block mb-1" style="font-size:1.75rem;color:var(--success);opacity:0.5;"></i>
+          All items are well stocked — good to go!
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Lessons list -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-list-check"></i>
+        Lessons
+        <span class="ms-2 badge" style="background:rgba(255,255,255,0.2);font-weight:500;">
+          {{ lessons|length }}
+        </span>
+      </div>
+      <div class="card-body p-0">
+        {% if lessons %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Class / Lesson</th>
+                <th>School</th>
+                <th>Progress</th>
+                <th>Status</th>
+                <th class="no-print">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for l in lessons %}
+            {% set pct = (l.packed_items / l.total_items * 100)|int if l.total_items > 0 else 0 %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ l.class_name }}</div>
+                <div class="text-muted small">
+                  {{ l.lesson_name }}
+                  {% if l.lesson_number %} · #{{ l.lesson_number }}{% endif %}
+                </div>
+                {% if l.return_items > 0 %}
+                <span class="return-tag">{{ l.return_items }} return</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {{ l.school_name or '—' }}
+                {% if l.teacher_name %}<div>{{ l.teacher_name }}</div>{% endif %}
+              </td>
+              <td style="min-width:120px;">
+                {% if l.total_items > 0 %}
+                <div class="progress mb-1">
+                  <div class="progress-bar {% if pct == 100 %}full{% elif pct > 0 %}partial{% endif %}"
+                       style="width:{{ pct }}%"></div>
+                </div>
+                <div class="text-muted" style="font-size:.72rem;">{{ l.packed_items }}/{{ l.total_items }}</div>
+                {% else %}
+                <span class="text-muted small">No items</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if l.status == 'packed' %}
+                <span class="status-badge s-packed">Done ✓</span>
+                {% elif l.status == 'in_progress' %}
+                <span class="status-badge s-in-progress">In Progress</span>
+                {% else %}
+                <span class="status-badge s-unpacked">Not Started</span>
+                {% endif %}
+              </td>
+              <td class="no-print">
+                <a href="{{ url_for('packing_lesson', lesson_id=l.id) }}"
+                   class="btn btn-sm {% if l.status == 'packed' %}btn-outline-secondary{% elif l.status == 'in_progress' %}btn-gold{% else %}btn-navy{% endif %}">
+                  {% if l.status == 'packed' %}
+                  <i class="bi bi-eye"></i> View
+                  {% elif l.status == 'in_progress' %}
+                  <i class="bi bi-play-fill"></i> Continue
+                  {% else %}
+                  <i class="bi bi-bag-check"></i> Start Packing
+                  {% endif %}
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-bag fs-1 d-block mb-2 opacity-25"></i>
+          {% if q or school_id or class_name or status %}
+          No lessons match your filters.
+          {% else %}
+          No lessons yet. <a href="{{ url_for('packing_import') }}">Import a master sheet</a> to get started.
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

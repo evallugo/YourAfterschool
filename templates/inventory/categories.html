@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Categories – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-3">
+  <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-tags me-2"></i>Manage Categories
+  </h4>
+</div>
+
+<div class="row g-4">
+  <!-- Add Category -->
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-folder-plus"></i> Add Category</div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="action" value="add_category">
+          <div class="input-group">
+            <input type="text" name="name" class="form-control" placeholder="Category name" required>
+            <button type="submit" class="btn btn-gold">Add</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-folder2-open"></i> Add Subcategory</div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="action" value="add_subcategory">
+          <div class="mb-2">
+            <select name="category_id" class="form-select" required>
+              <option value="">Select category...</option>
+              {% for cat in categories %}
+              <option value="{{ cat.id }}">{{ cat.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="input-group">
+            <input type="text" name="subname" class="form-control" placeholder="Subcategory name" required>
+            <button type="submit" class="btn btn-gold">Add</button>
+          </div>
+          <div class="form-text mt-1">e.g. "Cups" under "Cooking" — or "2oz Dixie" under "Cups"</div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing Categories -->
+  <div class="col-md-7">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-list-ul"></i> Categories & Subcategories</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr><th>Category</th><th>Subcategories</th><th class="no-print"></th></tr>
+            </thead>
+            <tbody>
+            {% for cat in categories %}
+            <tr>
+              <td class="fw-semibold">{{ cat.name }}</td>
+              <td class="small text-muted">
+                {% set subs = subcategories | selectattr('category_id', 'eq', cat.id) | list %}
+                {% if subs %}
+                {{ subs | map(attribute='name') | join(', ') }}
+                {% else %}—{% endif %}
+              </td>
+              <td class="no-print">
+                {% if current_user.role == 'admin' %}
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="action" value="delete_category">
+                  <input type="hidden" name="cat_id" value="{{ cat.id }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"
+                          data-confirm="Delete category '{{ cat.name }}'? Items won't be deleted.">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

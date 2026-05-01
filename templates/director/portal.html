@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block title %}{{ school.name if school else 'My School' }} – YAS{% endblock %}
+
+{% block content %}
+{% if not school %}
+<div class="alert alert-warning" style="font-size:1.05rem;padding:1.25rem;">
+  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+  <strong>Your account is not linked to a school yet.</strong><br>
+  Please contact your administrator to get set up.
+</div>
+{% else %}
+
+<!-- Greeting header -->
+<div class="director-header mb-4">
+  <div>
+    <div class="director-school-name">
+      <i class="bi bi-building-fill me-2"></i>{{ school.name }}
+    </div>
+    <div class="director-subtitle">Here's what's happening at your school today.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 1: WHAT'S COMING TO YOU
+     ══════════════════════════════════════════════════════ -->
+<div class="director-section mb-4">
+  <div class="director-section-header">
+    <i class="bi bi-box-arrow-in-down"></i>
+    What's Being Prepared for Your School
+  </div>
+  <div class="director-section-body">
+    {% if lessons %}
+    {% for l in lessons %}
+    {% set pct = ((l.packed_items / l.total_items * 100) | int) if l.total_items else 0 %}
+    <div class="director-lesson-row">
+      <div class="director-lesson-info">
+        <div class="director-lesson-name">{{ l.class_name }}</div>
+        <div class="director-lesson-sub">
+          {{ l.lesson_name or '' }}{% if l.lesson_number %} · Lesson #{{ l.lesson_number }}{% endif %}
+        </div>
+      </div>
+      <div class="director-lesson-progress">
+        <div class="progress director-progress">
+          <div class="progress-bar {% if pct == 100 %}full{% elif pct > 0 %}partial{% endif %}"
+               style="width:{{ pct }}%"></div>
+        </div>
+        <div class="director-progress-label">
+          {{ l.packed_items }} of {{ l.total_items }} items packed
+        </div>
+      </div>
+      <div>
+        {% if l.status == 'packed' %}
+        <span class="director-status-badge director-status-ready">
+          <i class="bi bi-check-circle-fill me-1"></i>Ready for Delivery
+        </span>
+        {% elif l.status == 'in_progress' %}
+        <span class="director-status-badge director-status-inprogress">
+          <i class="bi bi-hourglass-split me-1"></i>Being Packed Now
+        </span>
+        {% else %}
+        <span class="director-status-badge director-status-pending">
+          <i class="bi bi-clock me-1"></i>Not Started Yet
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% if not loop.last %}<hr class="director-divider">{% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="director-empty">
+      <i class="bi bi-box fs-1 mb-2 d-block opacity-25"></i>
+      No lessons have been assigned to your school yet.<br>
+      <span class="text-muted small">Your coordinator will add them when they're ready.</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 2: ITEMS TO RETURN
+     ══════════════════════════════════════════════════════ -->
+<div class="director-section mb-4">
+  <div class="director-section-header gold-header">
+    <i class="bi bi-arrow-return-left"></i>
+    Items You Need to Send Back
+  </div>
+  <div class="director-section-body">
+    <p class="text-muted mb-3" style="font-size:0.95rem;">
+      These items need to be returned to the warehouse after use.
+      Fill in the quantity and tap <strong>Send This Back</strong> to let us know it's coming.
+    </p>
+    {% if returnable %}
+    {% for ri in returnable %}
+    {% set logged = returns | selectattr('lesson_item_id', 'equalto', ri.id) | list %}
+    {% set pending_return = logged | selectattr('received_at', 'none') | list %}
+    <div class="director-return-card {% if pending_return %}director-return-logged{% endif %}">
+      <div class="director-return-item-name">{{ ri.item_description }}</div>
+      <div class="director-return-item-class">
+        From: {{ ri.class_name }}{% if ri.lesson_number %} · Lesson #{{ ri.lesson_number }}{% endif %}
+      </div>
+
+      {% if pending_return %}
+      <!-- Already logged -->
+      <div class="director-already-logged">
+        <i class="bi bi-clock-fill me-1" style="color:var(--gold-dark);"></i>
+        <strong>Already submitted</strong> — the warehouse will pick this up soon.
+        <div class="text-muted small mt-1">Quantity logged: {{ pending_return[0].expected_quantity or 'Not specified' }}</div>
+      </div>
+      {% else %}
+      <!-- Inline return form -->
+      <form method="post" action="{{ url_for('director_log_return') }}" class="director-return-form">
+        <input type="hidden" name="lesson_item_id" value="{{ ri.id }}">
+        <div class="director-return-qty-row">
+          <label class="director-qty-label">How many are you returning?</label>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <input type="number" name="expected_quantity" class="form-control director-qty-input"
+                   min="1" placeholder="Enter quantity" required>
+            <button type="submit" class="btn btn-gold director-send-btn">
+              <i class="bi bi-arrow-return-left me-1"></i>Send This Back
+            </button>
+          </div>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+    {% if not loop.last %}<div style="height:0.75rem;"></div>{% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="director-empty">
+      <i class="bi bi-check-circle-fill fs-1 mb-2 d-block" style="color:var(--success);opacity:0.4;"></i>
+      <strong>Nothing to return right now.</strong><br>
+      <span class="text-muted small">When reusable items need to come back, they'll show up here.</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 3: RETURN HISTORY
+     ══════════════════════════════════════════════════════ -->
+{% set completed_returns = returns | rejectattr('received_at', 'none') | list %}
+{% set pending_returns   = returns | selectattr('received_at', 'none') | list %}
+{% if completed_returns or pending_returns %}
+<div class="director-section mb-4">
+  <div class="director-section-header light-header">
+    <i class="bi bi-clock-history"></i>
+    Returns You've Already Logged
+  </div>
+  <div class="director-section-body p-0">
+    <table class="table director-history-table mb-0">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Class</th>
+          <th>Qty You Sent</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in returns %}
+      <tr>
+        <td class="fw-semibold">{{ r.item_description }}</td>
+        <td class="text-muted small">{{ r.class_name }}{% if r.lesson_number %} #{{ r.lesson_number }}{% endif %}</td>
+        <td>{{ r.expected_quantity or '—' }}</td>
+        <td>
+          {% if r.received_at %}
+          <span class="director-status-badge director-status-ready" style="font-size:0.78rem;">
+            <i class="bi bi-check-circle-fill me-1"></i>Received at Warehouse
+          </span>
+          {% else %}
+          <span class="director-status-badge director-status-inprogress" style="font-size:0.78rem;">
+            <i class="bi bi-hourglass-split me-1"></i>Waiting for Pickup
+          </span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

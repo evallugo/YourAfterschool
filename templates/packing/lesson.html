@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+{% block title %}{{ lesson.class_name }} – {{ lesson.lesson_name }} – YAS{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-center gap-3 mb-3 no-print">
+  <a href="{{ url_for('packing') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div class="flex-grow-1">
+    <h4 class="mb-0 fw-bold" style="color:var(--navy)">{{ lesson.class_name }}</h4>
+    <div class="text-muted small">
+      {{ lesson.lesson_name }}{% if lesson.lesson_number %} · Lesson #{{ lesson.lesson_number }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('packing_lesson_print', lesson_id=lesson.id) }}"
+       target="_blank" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-printer me-1"></i>Print Packing List
+    </a>
+    <a href="{{ url_for('packing_lesson_qr', lesson_id=lesson.id) }}"
+       target="_blank" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-qr-code me-1"></i>Show QR Code
+    </a>
+  </div>
+</div>
+
+<!-- Info bar -->
+<div class="row g-3 mb-3">
+  <div class="col-sm-3">
+    <div class="stat-card {% if pct == 100 %}s-success{% elif pct > 0 %}s-gold{% endif %}">
+      <div class="stat-num" id="pct-label">{{ pct }}%</div>
+      <div class="stat-label">Complete</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="stat-card">
+      <div class="stat-num" style="font-size:1.3rem;" id="packed-count">{{ packed }}/{{ total }}</div>
+      <div class="stat-label">Items Packed</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="stat-card">
+      <div class="stat-num" style="font-size:1rem;">
+        {% if lesson.status == 'packed' %}
+        <span class="status-badge s-packed">Done ✓</span>
+        {% elif lesson.status == 'in_progress' %}
+        <span class="status-badge s-in-progress">In Progress</span>
+        {% else %}
+        <span class="status-badge s-unpacked">Not Started</span>
+        {% endif %}
+      </div>
+      <div class="stat-label">Status</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="stat-card">
+      <div class="stat-num" style="font-size:1rem;">{{ lesson.school_name or 'Unassigned' }}</div>
+      <div class="stat-label">School{% if lesson.teacher_name %} · {{ lesson.teacher_name }}{% endif %}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress bar -->
+<div class="mb-3 no-print">
+  <div class="progress" style="height:12px;">
+    <div class="progress-bar {% if pct == 100 %}full{% elif pct > 0 %}partial{% endif %}"
+         style="width:{{ pct }}%"
+         role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+    </div>
+  </div>
+</div>
+
+<!-- Completion banner -->
+<div id="completion-banner"
+     class="alert no-print mb-3"
+     style="background:#d4edda;border:2px solid #28a745;border-radius:10px;font-size:1.05rem;{% if pct < 100 %}display:none;{% endif %}">
+  <i class="bi bi-check-circle-fill me-2" style="color:#28a745;font-size:1.3rem;"></i>
+  <strong>All items packed!</strong> This lesson is complete and ready for delivery.
+</div>
+
+<div class="row g-4">
+  <!-- Packing checklist -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-list-check"></i> Packing Checklist
+        <span class="ms-2" style="font-size:0.8rem;opacity:0.85;font-weight:400;">— check off each item as you pack it</span>
+        {% if items | selectattr('return_required') | list %}
+        <span class="ms-auto return-tag">Gold border = must be returned after use</span>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th style="width:40px;"></th>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Size</th>
+                <th>Kit</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+            <tr class="item-row {% if item.is_packed %}is-packed{% endif %} {% if item.return_required %}return-item{% endif %}"
+                id="row-{{ item.id }}" style="cursor:pointer;" onclick="rowClick(event, this)">
+              <td class="text-center">
+                <input type="checkbox"
+                       class="pack-check"
+                       data-item-id="{{ item.id }}"
+                       data-lesson-id="{{ lesson.id }}"
+                       {% if item.is_packed %}checked{% endif %}>
+              </td>
+              <td>
+                <span class="item-desc">{{ item.item_description }}</span>
+                {% if item.return_required %}
+                <span class="return-tag ms-1">Return After Use</span>
+                {% endif %}
+                {% if item.pack_notes %}
+                <div class="text-muted small mt-1">{{ item.pack_notes }}</div>
+                {% endif %}
+              </td>
+              <td class="small fw-semibold">{{ item.per_section_total or '—' }}</td>
+              <td class="small text-muted">{{ item.item_size or '—' }}</td>
+              <td class="small">
+                {% if item.essentials_type %}
+                <span class="kit-tag">{{ item.essentials_type }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Side panel -->
+  <div class="col-lg-4 no-print">
+    <!-- Assign school -->
+    <div class="card mb-3">
+      <div class="card-header light-header">
+        <i class="bi bi-building"></i> Assign School
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('packing_assign', lesson_id=lesson.id) }}">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">School</label>
+            <select name="school_id" class="form-select form-select-sm">
+              <option value="">— Unassigned —</option>
+              {% for s in schools %}
+              <option value="{{ s.id }}" {% if lesson.school_id == s.id %}selected{% endif %}>
+                {{ s.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Teacher Name</label>
+            <input type="text" name="teacher_name" class="form-control form-control-sm"
+                   value="{{ lesson.teacher_name or '' }}" placeholder="Optional">
+          </div>
+          <button type="submit" class="btn btn-navy btn-sm w-100">Save Assignment</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- QR Code -->
+    <div class="card mb-3">
+      <div class="card-header light-header">
+        <i class="bi bi-qr-code"></i> Lesson QR Code
+      </div>
+      <div class="card-body text-center">
+        <div class="qr-frame d-inline-block mb-2">
+          <img src="{{ url_for('packing_lesson_qr', lesson_id=lesson.id) }}"
+               alt="QR Code" style="width:140px;height:140px;">
+        </div>
+        <div class="text-muted small mb-2">Scan to open this checklist on any device</div>
+        <a href="{{ url_for('packing_lesson_qr', lesson_id=lesson.id) }}"
+           download="lesson-{{ lesson.id }}-qr.png"
+           class="btn btn-outline-secondary btn-sm w-100">
+          <i class="bi bi-download me-1"></i>Download QR
+        </a>
+      </div>
+    </div>
+
+    <!-- Lesson info -->
+    <div class="card">
+      <div class="card-header light-header">
+        <i class="bi bi-info-circle"></i> Lesson Info
+      </div>
+      <div class="card-body small">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="border-0 py-1">Class Type</th><td class="border-0 py-1">{{ lesson.class_type or '—' }}</td></tr>
+            <tr><th class="border-0 py-1">Class</th><td class="border-0 py-1">{{ lesson.class_name }}</td></tr>
+            <tr><th class="border-0 py-1">Lesson</th><td class="border-0 py-1">{{ lesson.lesson_name }}</td></tr>
+            <tr><th class="border-0 py-1">Lesson #</th><td class="border-0 py-1">{{ lesson.lesson_number or '—' }}</td></tr>
+            <tr><th class="border-0 py-1">Pack to</th><td class="border-0 py-1">{{ lesson.pack_to }} students</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function rowClick(e, row) {
+  if (e.target.type === 'checkbox') return;
+  var cb = row.querySelector('.pack-check');
+  if (cb) cb.click();
+}
+
+// Show/hide completion banner when progress hits 100
+(function() {
+  var pctEl  = document.getElementById('pct-label');
+  var banner = document.getElementById('completion-banner');
+  if (!pctEl || !banner) return;
+  var obs = new MutationObserver(function() {
+    banner.style.display = (parseInt(pctEl.textContent) >= 100) ? '' : 'none';
+  });
+  obs.observe(pctEl, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+{% endblock %}

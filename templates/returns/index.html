@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% block title %}Returns – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-arrow-return-left me-2"></i>Returns Tracking
+  </h4>
+  <button class="btn btn-gold no-print" data-bs-toggle="modal" data-bs-target="#logReturnModal">
+    <i class="bi bi-plus-lg me-1"></i>Log Return
+  </button>
+</div>
+
+<div class="row g-4">
+  <!-- Pending Returns (not yet received at warehouse) -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-hourglass-split"></i> Pending — Awaiting Receipt at Warehouse
+      </div>
+      <div class="card-body p-0">
+        {% set pending = all_returns | selectattr('received_at', 'none') | list %}
+        {% if pending %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>School</th>
+                <th>Class / Lesson</th>
+                <th>Expected Qty</th>
+                <th>Logged By</th>
+                <th class="no-print">Qty Received &amp; Mark Done</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for r in pending %}
+            <tr>
+              <td class="fw-semibold">{{ r.item_description }}</td>
+              <td class="small">{{ r.school_name or '—' }}</td>
+              <td class="small text-muted">
+                {{ r.class_name }}
+                {% if r.lesson_number %} #{{ r.lesson_number }}{% endif %}
+              </td>
+              <td>{{ r.expected_quantity or '—' }}</td>
+              <td class="small text-muted">{{ r.logged_by_name or '—' }}</td>
+              <td class="no-print">
+                <div class="d-flex flex-column gap-1">
+                  <form method="post" action="{{ url_for('returns_receive', return_id=r.id) }}"
+                        class="d-flex align-items-center gap-1">
+                    <input type="number" name="received_quantity" class="form-control form-control-sm"
+                           style="width:70px;" min="1" required
+                           value="{{ r.expected_quantity or '' }}" placeholder="Qty">
+                    <button type="submit" class="btn btn-sm btn-navy">
+                      <i class="bi bi-check2"></i> Received
+                    </button>
+                  </form>
+                  <form method="post" action="{{ url_for('returns_write_off', return_id=r.id) }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            data-confirm="Clear this return as written off? Inventory will NOT be updated."
+                            style="font-size:0.72rem;">
+                      <i class="bi bi-x-circle"></i> Write Off
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted small">
+          <i class="bi bi-check-circle fs-2 d-block mb-1 opacity-25"></i>
+          No pending returns
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Completed Returns -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header light-header">
+        <i class="bi bi-check-circle"></i> Completed Returns
+      </div>
+      <div class="card-body p-0">
+        {% set completed = all_returns | rejectattr('received_at', 'none') | list %}
+        {% if completed %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>School</th>
+                <th>Expected</th>
+                <th>Received</th>
+                <th>Inventory</th>
+                <th>Received By</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for r in completed %}
+            <tr {% if r.written_off %}style="opacity:0.65;"{% endif %}>
+              <td class="small fw-semibold">{{ r.item_description }}</td>
+              <td class="small">{{ r.school_name or '—' }}</td>
+              <td class="small">{{ r.expected_quantity or '—' }}</td>
+              <td class="small">
+                {% if r.written_off %}
+                <span class="text-muted fst-italic">—</span>
+                {% else %}
+                {{ r.received_quantity }}
+                {% if r.expected_quantity and r.received_quantity and r.received_quantity < r.expected_quantity %}
+                <span class="text-muted small"> (partial)</span>
+                {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if r.written_off %}
+                <span class="status-badge s-shelved" title="Manually cleared — inventory not adjusted.">Written Off</span>
+                {% elif r.readded_to_inventory %}
+                <span class="status-badge s-packed">Added to Inventory ✓</span>
+                {% elif r.inventory_item_id %}
+                <span class="status-badge s-gold" title="Item exists in inventory but was not auto-updated. Add manually.">
+                  ⚠ Add Manually
+                </span>
+                {% else %}
+                <span class="status-badge s-shelved" title="This item has no inventory record.">Not Tracked</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ r.received_by_name or '—' }}</td>
+              <td class="small text-muted">{{ r.received_at[:10] if r.received_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-3 text-muted small">No completed returns yet</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Returnable Items Reference -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header gold-header">
+        <i class="bi bi-info-circle"></i> All Returnable Items (from packing lists)
+      </div>
+      <div class="card-body p-0">
+        {% if returnable %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Item</th><th>Class</th><th>Lesson #</th><th>School</th><th class="no-print">Log Return</th></tr></thead>
+            <tbody>
+            {% for ri in returnable %}
+            <tr>
+              <td class="small fw-semibold">{{ ri.item_description }}</td>
+              <td class="small text-muted">{{ ri.class_name }}</td>
+              <td class="small text-muted">{{ ri.lesson_number or '—' }}</td>
+              <td class="small text-muted">{{ ri.school_name or '—' }}</td>
+              <td class="no-print">
+                <button class="btn btn-sm btn-outline-secondary"
+                        data-bs-toggle="modal" data-bs-target="#logReturnModal"
+                        data-item-id="{{ ri.id }}"
+                        data-item-desc="{{ ri.item_description }}"
+                        data-school-name="{{ ri.school_name or '' }}"
+                        onclick="prefillReturn(this)">
+                  Log
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-3 text-muted small">No returnable items in packing lists yet</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Log Return Modal -->
+<div class="modal fade" id="logReturnModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--navy);color:white;">
+        <h5 class="modal-title"><i class="bi bi-arrow-return-left me-2"></i>Log Return</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('returns_log') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Returnable Item <span class="text-danger">*</span></label>
+            <select name="lesson_item_id" class="form-select" id="return-item-select" required>
+              <option value="">Select item...</option>
+              {% for ri in returnable %}
+              <option value="{{ ri.id }}">
+                {{ ri.class_name }}{% if ri.lesson_number %} #{{ ri.lesson_number }}{% endif %} — {{ ri.item_description }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">School</label>
+            <select name="school_id" class="form-select">
+              <option value="">— Unknown —</option>
+              {% for s in schools %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Expected Quantity to Return</label>
+            <input type="number" name="expected_quantity" class="form-control" min="0">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-gold">Log Return</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function prefillReturn(btn) {
+  var itemId = btn.dataset.itemId;
+  var sel = document.getElementById('return-item-select');
+  if (sel) sel.value = itemId;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Schools – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-building-fill me-2"></i>Schools
+  </h4>
+  {% if current_user.role == 'admin' %}
+  <a href="{{ url_for('schools_add') }}" class="btn btn-gold no-print">
+    <i class="bi bi-plus-lg me-1"></i>Add School
+  </a>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if schools %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>School Name</th>
+            <th>Address</th>
+            <th>Lessons</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in schools %}
+        <tr>
+          <td>
+            <a href="{{ url_for('school_detail', school_id=s.id) }}" class="fw-semibold text-decoration-none"
+               style="color:var(--navy)">
+              {{ s.name }}
+            </a>
+            {% if s.notes %}
+            <i class="bi bi-chat-left-text-fill text-muted ms-1" style="font-size:.75rem;"
+               title="{{ s.notes[:100] }}"></i>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ s.address or '—' }}</td>
+          <td>
+            <span class="badge" style="background:var(--navy);">{{ s.lesson_count }}</span>
+          </td>
+          <td>
+            <span class="status-badge {% if s.active %}s-packed{% else %}s-shelved{% endif %}">
+              {{ 'Active' if s.active else 'Inactive' }}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('school_detail', school_id=s.id) }}" class="btn btn-sm btn-navy">
+                <i class="bi bi-eye"></i> View
+              </a>
+              {% if current_user.role == 'admin' %}
+              <a href="{{ url_for('school_edit', school_id=s.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-building fs-1 d-block mb-2 opacity-25"></i>
+      No schools yet.
+      {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('schools_add') }}">Add the first school</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

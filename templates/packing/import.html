@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Import Master Sheet – YAS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <a href="{{ url_for('packing') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+        <i class="bi bi-upload me-2"></i>Import Master Sheet
+      </h4>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-4">
+        <p class="text-muted mb-4">
+          Upload your bulk order Excel file. The file must contain a sheet named <strong>Master</strong>
+          with columns for Class Name, Lesson Name, Lesson #, Item Description, and Per Section Total.
+          The system will auto-detect column names.
+        </p>
+
+        <form method="post" enctype="multipart/form-data">
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Excel File (.xlsx) <span class="text-danger">*</span></label>
+            <input type="file" name="file" class="form-control" accept=".xlsx" required>
+            <div class="form-text">Must be .xlsx format with a "Master" sheet tab.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-gold px-4">
+              <i class="bi bi-upload me-1"></i>Import & Generate Packing Lists
+            </button>
+            <a href="{{ url_for('packing') }}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Expected columns reference -->
+    <div class="card">
+      <div class="card-header light-header">
+        <i class="bi bi-info-circle"></i> Expected Column Names
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Column</th><th>Required</th><th>Auto-detected as</th></tr></thead>
+          <tbody>
+            <tr><td>Class Name</td><td><span class="text-danger">Required</span></td><td class="text-muted small">class name, class</td></tr>
+            <tr><td>Lesson Name</td><td><span class="text-danger">Required</span></td><td class="text-muted small">lesson name</td></tr>
+            <tr><td>Lesson #</td><td><span class="text-danger">Required</span></td><td class="text-muted small">lesson #, lesson number</td></tr>
+            <tr><td>Item Description</td><td><span class="text-danger">Required</span></td><td class="text-muted small">item description, item</td></tr>
+            <tr><td>Per Section Total</td><td><span class="text-danger">Required</span></td><td class="text-muted small">per section total, per section</td></tr>
+            <tr><td>Item Size</td><td class="text-muted">Optional</td><td class="text-muted small">item size, size</td></tr>
+            <tr><td>Essentials</td><td class="text-muted">Optional</td><td class="text-muted small">essential items, essential, essentials</td></tr>
+            <tr><td>Class Type</td><td class="text-muted">Optional</td><td class="text-muted small">class type</td></tr>
+            <tr><td>Return</td><td class="text-muted">Optional</td><td class="text-muted small">return</td></tr>
+            <tr><td>Notes</td><td class="text-muted">Optional</td><td class="text-muted small">notes, note</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header light-header">
+        <i class="bi bi-lightbulb"></i> What happens after import
+      </div>
+      <div class="card-body small text-muted">
+        <ol class="mb-0">
+          <li>Each unique Class + Lesson Name + Lesson # combination becomes a lesson in the database.</li>
+          <li>All items for that lesson are stored and trackable in the packing checklist.</li>
+          <li>Items in the <strong>Return</strong> column are highlighted on packing sheets.</li>
+          <li>An Excel file with one tab per lesson is generated for download.</li>
+          <li>Re-importing the same sheet updates existing lessons without creating duplicates.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

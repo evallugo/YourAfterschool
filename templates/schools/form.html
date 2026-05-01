@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if school else 'Add' }} School – YAS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <a href="{{ url_for('schools') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+        {{ 'Edit School' if school else 'Add School' }}
+      </h4>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-4">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">School Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ school.name if school else '' }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Address</label>
+            <input type="text" name="address" class="form-control"
+                   value="{{ school.address if school else '' }}"
+                   placeholder="Street address...">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(special instructions, preferences)</span></label>
+            <textarea name="notes" class="form-control" rows="3"
+                      placeholder="e.g. This school prefers extra tablecloths, teacher likes additional supplies...">{{ school.notes if school else '' }}</textarea>
+          </div>
+          {% if school %}
+          <div class="mb-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="active" id="active"
+                     {% if school.active %}checked{% endif %}>
+              <label class="form-check-label" for="active">Active school</label>
+            </div>
+          </div>
+          {% endif %}
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-gold px-4">
+              {{ 'Save Changes' if school else 'Add School' }}
+            </button>
+            <a href="{{ url_for('schools') }}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

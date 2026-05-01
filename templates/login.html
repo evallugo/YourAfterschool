@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Sign In – Your After School{% endblock %}
+{% block head %}<style>
+  body { background: var(--navy) !important; }
+  .container-fluid { padding: 0 !important; }
+</style>{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="text-center mb-4">
+      <img src="{{ url_for('static', filename='logo.jpg') }}"
+           alt="Your After School"
+           class="login-logo mb-2"
+           onerror="this.style.display='none'">
+      <div style="color:var(--navy);font-size:0.85rem;" class="text-muted">Inventory Management System</div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }} py-2 mb-3">{{ msg }}</div>
+    {% endfor %}{% endif %}
+    {% endwith %}
+
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label fw-semibold text-dark">Username</label>
+        <input type="text" name="username" class="form-control form-control-lg" required autofocus
+               autocomplete="username">
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-semibold text-dark">Password</label>
+        <input type="password" name="password" class="form-control form-control-lg" required
+               autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-gold btn-lg">Sign In</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

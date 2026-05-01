@@ -1,0 +1,546 @@
+/* ── Your After School Inventory System ── */
+:root {
+  --navy:       #1E3269;
+  --navy-light: #2a4494;
+  --navy-dark:  #152448;
+  --gold:       #F0A500;
+  --gold-dark:  #c88900;
+  --bg:         #f2f4f8;
+  --white:      #ffffff;
+  --text:       #2c3e50;
+  --muted:      #6c757d;
+  --border:     #dee2e6;
+  --success:    #198754;
+  --warning:    #ffc107;
+  --danger:     #dc3545;
+}
+
+/* ── Base ── */
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* ── Navbar ── */
+.navbar {
+  background: var(--navy) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  padding: 0.5rem 1rem;
+}
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+.navbar-brand img {
+  height: 38px;
+  filter: brightness(0) invert(1);
+}
+.navbar-brand-text {
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+.navbar .nav-link {
+  color: rgba(255,255,255,0.82) !important;
+  font-weight: 500;
+  padding: 0.45rem 0.9rem !important;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.navbar .nav-link:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,0.1);
+}
+.navbar .nav-link.active {
+  color: var(--gold) !important;
+  background: rgba(255,255,255,0.08);
+}
+.navbar-toggler {
+  border-color: rgba(255,255,255,0.3);
+}
+.navbar-toggler-icon {
+  filter: invert(1);
+}
+.role-badge {
+  background: var(--gold);
+  color: #1a1a1a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Login ── */
+.login-wrapper {
+  min-height: 100vh;
+  background: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.login-card {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+.login-card .btn-gold {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+.login-logo {
+  max-height: 90px;
+  max-width: 220px;
+}
+
+/* ── Cards ── */
+.card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  margin-bottom: 1.5rem;
+}
+.card-header {
+  background: var(--navy);
+  color: white;
+  border-radius: 12px 12px 0 0 !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.8rem 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.card-header.gold-header {
+  background: var(--gold);
+  color: #1a1a1a;
+}
+.card-header.light-header {
+  background: #e8ecf5;
+  color: var(--navy);
+}
+
+/* ── Stat cards ── */
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.25rem 1.4rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  border-left: 4px solid var(--navy);
+}
+.stat-num {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 0.25rem;
+}
+.stat-card.s-gold   { border-left-color: var(--gold); }
+.stat-card.s-gold .stat-num { color: var(--gold-dark); }
+.stat-card.s-danger { border-left-color: var(--danger); }
+.stat-card.s-danger .stat-num { color: var(--danger); }
+.stat-card.s-success{ border-left-color: var(--success); }
+.stat-card.s-success .stat-num { color: var(--success); }
+
+/* ── Buttons ── */
+.btn-navy {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: white;
+}
+.btn-navy:hover {
+  background: var(--navy-light);
+  border-color: var(--navy-light);
+  color: white;
+}
+.btn-gold {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #1a1a1a;
+  font-weight: 600;
+}
+.btn-gold:hover {
+  background: var(--gold-dark);
+  border-color: var(--gold-dark);
+  color: #1a1a1a;
+}
+
+/* ── Tables ── */
+.table thead th {
+  background: var(--navy);
+  color: white;
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border: none;
+  padding: 0.7rem 0.9rem;
+}
+.table tbody td {
+  padding: 0.65rem 0.9rem;
+  vertical-align: middle;
+  border-color: var(--border);
+}
+.table-hover tbody tr:hover {
+  background: #eef2ff;
+}
+
+/* ── Badges / status ── */
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.s-packed     { background: #d4edda; color: #155724; }
+.s-in-progress{ background: #fff3cd; color: #856404; }
+.s-unpacked   { background: #f8d7da; color: #721c24; }
+.s-pending    { background: #d1ecf1; color: #0c5460; }
+.s-arrived    { background: #cce5ff; color: #004085; }
+.s-shelved    { background: #e2e3e5; color: #383d41; }
+.s-delivered  { background: #d4edda; color: #155724; }
+.s-gold       { background: #fff3cd; color: #856404; }
+
+/* ── Category sidebar ── */
+.cat-sidebar .list-group-item {
+  border: none;
+  padding: 0.55rem 1rem;
+  border-radius: 8px !important;
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-size: 0.9rem;
+}
+.cat-sidebar .list-group-item:hover {
+  background: #e8ecf5;
+  color: var(--navy);
+}
+.cat-sidebar .list-group-item.active {
+  background: var(--navy);
+  color: white;
+}
+
+/* ── Toolbar ── */
+.page-toolbar {
+  background: white;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  margin-bottom: 1.25rem;
+}
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 0.25rem;
+}
+
+/* ── Progress bar ── */
+.progress { height: 8px; border-radius: 20px; background: #e9ecef; }
+.progress-bar {
+  background: var(--navy);
+  border-radius: 20px;
+  transition: width 0.3s ease;
+}
+.progress-bar.full { background: var(--success); }
+.progress-bar.partial { background: var(--gold); }
+
+/* ── Lesson packing rows ── */
+.item-row {
+  transition: background 0.12s;
+}
+.item-row.is-packed {
+  background: #f8f9fa;
+}
+.item-row.is-packed .item-desc {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.item-row.return-item {
+  border-left: 3px solid var(--gold);
+}
+.return-tag {
+  background: var(--gold);
+  color: #1a1a1a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kit-tag {
+  background: #e8ecf5;
+  color: var(--navy);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+.pack-check {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  accent-color: var(--navy);
+  flex-shrink: 0;
+}
+
+/* ── Qty adjuster ── */
+.qty-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #f0f4ff;
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-weight: 600;
+}
+.qty-badge.low    { background: #fff3cd; color: #856404; }
+.qty-badge.empty  { background: #f8d7da; color: #721c24; }
+.qty-badge.good   { background: #d4edda; color: #155724; }
+
+/* ── QR code frame ── */
+.qr-frame {
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  padding: 0.5rem;
+  display: inline-block;
+}
+
+/* ── Print styles ── */
+@media print {
+  .navbar, .page-toolbar, .no-print, .btn, .sidebar-col,
+  .alert, footer { display: none !important; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+  .card-header { background: #ddd !important; color: #000 !important; -webkit-print-color-adjust: exact; }
+  .table thead th { background: #ddd !important; color: #000 !important; -webkit-print-color-adjust: exact; }
+  body { background: white; font-size: 11pt; }
+  .return-item { border-left: 3px solid #F0A500 !important; }
+  .return-tag { background: #F0A500 !important; -webkit-print-color-adjust: exact; }
+  .pack-check { width: 16px; height: 16px; }
+  h4, h5 { color: var(--navy); }
+}
+
+/* ── Tablet responsive ── */
+@media (max-width: 992px) {
+  .sidebar-col { display: none; }
+}
+@media (max-width: 768px) {
+  .stat-num { font-size: 1.6rem; }
+  .pack-check { width: 28px; height: 28px; }
+  .table { font-size: 0.875rem; }
+  .table thead th, .table tbody td { padding: 0.5rem 0.6rem; }
+  .page-toolbar { gap: 0.35rem; }
+}
+
+/* ── Low stock highlight ── */
+.stock-low  { color: #856404; font-weight: 600; }
+.stock-empty{ color: var(--danger); font-weight: 700; }
+.stock-ok   { color: var(--success); }
+
+/* ── Pack checklist rows — larger touch targets ── */
+.item-row td {
+  padding: 0.85rem 0.9rem;
+}
+.pack-check {
+  width: 26px;
+  height: 26px;
+}
+
+/* ── Director portal ── */
+.director-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.director-school-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+.director-subtitle {
+  color: var(--muted);
+  font-size: 1rem;
+  margin-top: 0.15rem;
+}
+.director-section {
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+  overflow: hidden;
+}
+.director-section-header {
+  background: var(--navy);
+  color: white;
+  font-size: 1.05rem;
+  font-weight: 600;
+  padding: 1rem 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.director-section-header.gold-header {
+  background: var(--gold);
+  color: #1a1a1a;
+}
+.director-section-header.light-header {
+  background: #e8ecf5;
+  color: var(--navy);
+}
+.director-section-body {
+  padding: 1.25rem 1.4rem;
+}
+.director-lesson-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0;
+}
+.director-lesson-info {
+  flex: 1;
+  min-width: 180px;
+}
+.director-lesson-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+.director-lesson-sub {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 0.1rem;
+}
+.director-lesson-progress {
+  min-width: 160px;
+  flex: 1;
+}
+.director-progress {
+  height: 10px;
+  border-radius: 20px;
+}
+.director-progress-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.director-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.6rem 0;
+}
+.director-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.director-status-ready      { background: #d4edda; color: #155724; }
+.director-status-inprogress { background: #fff3cd; color: #856404; }
+.director-status-pending    { background: #e2e3e5; color: #383d41; }
+.director-return-card {
+  background: #fffdf5;
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+}
+.director-return-card.director-return-logged {
+  background: #f8f9fa;
+  border-color: #ced4da;
+}
+.director-return-item-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 0.15rem;
+}
+.director-return-item-class {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 0.8rem;
+}
+.director-already-logged {
+  background: white;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  font-size: 0.92rem;
+  border: 1px solid #ced4da;
+}
+.director-return-form {
+  margin-top: 0.5rem;
+}
+.director-return-qty-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.director-qty-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.director-qty-input {
+  max-width: 140px;
+  font-size: 1rem;
+  padding: 0.45rem 0.75rem;
+}
+.director-send-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.director-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+.director-history-table thead th {
+  font-size: 0.8rem;
+}
+.director-history-table tbody td {
+  font-size: 0.92rem;
+  padding: 0.7rem 1rem;
+}
+
+/* ── Tablet / mobile improvements ── */
+@media (max-width: 768px) {
+  .director-school-name { font-size: 1.2rem; }
+  .director-section-header { font-size: 0.95rem; }
+  .director-lesson-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .director-return-card { padding: 0.9rem 1rem; }
+  .director-qty-input { max-width: 120px; }
+}

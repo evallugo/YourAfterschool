@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block title %}Arriving – YAS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-box-arrow-in-down me-2"></i>Arriving / Incoming Queue
+  </h4>
+  <button class="btn btn-gold no-print" data-bs-toggle="modal" data-bs-target="#addOrderModal">
+    <i class="bi bi-plus-lg me-1"></i>Add Incoming Order
+  </button>
+</div>
+
+<div class="row g-4">
+  <!-- Pending -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-clock-history"></i> Pending / Ordered
+      </div>
+      <div class="card-body p-0">
+        {% set pending = orders | selectattr('status', 'eq', 'pending') | list %}
+        {% if pending %}
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th>Expected</th><th class="no-print">Actions</th></tr></thead>
+          <tbody>
+          {% for o in pending %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ o.item_description }}</div>
+              {% if o.notes %}<div class="text-muted small">{{ o.notes }}</div>{% endif %}
+            </td>
+            <td>{{ o.quantity }} {{ o.unit }}</td>
+            <td class="small text-muted">{{ o.source or '—' }}</td>
+            <td class="small text-muted">{{ o.expected_arrival or '—' }}</td>
+            <td class="no-print">
+              <form method="post" action="{{ url_for('arriving_mark_arrived', order_id=o.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-navy" title="Mark Arrived">
+                  <i class="bi bi-check2"></i> Arrived
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4 small">
+          <i class="bi bi-inbox fs-2 d-block mb-1 opacity-25"></i>No pending orders
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrived (ready to shelve) -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header gold-header">
+        <i class="bi bi-box-seam"></i> Arrived — Ready to Shelve
+      </div>
+      <div class="card-body p-0">
+        {% set arrived = orders | selectattr('status', 'eq', 'arrived') | list %}
+        {% if arrived %}
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Item</th><th>Qty</th><th>Arrived</th><th class="no-print">Shelve</th></tr></thead>
+          <tbody>
+          {% for o in arrived %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ o.item_description }}</div>
+              {% if o.item_name and o.item_name != o.item_description %}
+              <div class="text-muted small">→ {{ o.item_name }}</div>
+              {% endif %}
+            </td>
+            <td>{{ o.quantity }} {{ o.unit }}</td>
+            <td class="small text-muted">{{ o.actual_arrival or '—' }}</td>
+            <td class="no-print">
+              <form method="post" action="{{ url_for('arriving_shelve', order_id=o.id) }}">
+                <button type="submit" class="btn btn-sm btn-gold"
+                        {% if not o.item_id %}
+                        title="Link this to an inventory item first to auto-update stock"
+                        {% endif %}>
+                  <i class="bi bi-archive"></i>
+                  {% if o.item_id %}Shelve & Add to Stock{% else %}Shelve{% endif %}
+                </button>
+              </form>
+              {% if not o.item_id %}
+              <div class="text-muted" style="font-size:.7rem;">No inventory item linked — stock won't auto-update</div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4 small">
+          <i class="bi bi-check-circle fs-2 d-block mb-1 opacity-25"></i>Nothing waiting to be shelved
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recently Shelved -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header light-header">
+        <i class="bi bi-archive"></i> Recently Shelved
+      </div>
+      <div class="card-body p-0">
+        {% set shelved = orders | selectattr('status', 'eq', 'shelved') | list %}
+        {% if shelved %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th>Arrived</th></tr></thead>
+            <tbody>
+            {% for o in shelved %}
+            <tr>
+              <td class="small fw-semibold">{{ o.item_description }}</td>
+              <td class="small">{{ o.quantity }} {{ o.unit }}</td>
+              <td class="small text-muted">{{ o.source or '—' }}</td>
+              <td class="small text-muted">{{ o.actual_arrival or '—' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3 small">No shelved orders yet</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Order Modal -->
+<div class="modal fade" id="addOrderModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--navy);color:white;">
+        <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>Add Incoming Order</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('arriving_add') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Link to Inventory Item <span class="text-muted fw-normal">(optional)</span></label>
+            <select name="item_id" class="form-select" id="arriving-item-select">
+              <option value="">— New / unlisted item —</option>
+              {% for item in items %}
+              <option value="{{ item.id }}" data-unit="{{ item.unit }}">{{ item.name }} ({{ item.unit }})</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">If linked, shelving will auto-update inventory quantity.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Item Description <span class="text-danger">*</span></label>
+            <input type="text" name="item_description" class="form-control" id="arriving-item-desc"
+                   placeholder="e.g. Popsicle Sticks 4in" required>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
+              <input type="number" name="quantity" class="form-control" min="1" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Unit</label>
+              <input type="text" name="unit" class="form-control" id="arriving-unit"
+                     value="pcs" list="unit-options2">
+              <datalist id="unit-options2">
+                <option value="pcs"><option value="sets"><option value="bags">
+                <option value="boxes"><option value="rolls"><option value="sheets">
+              </datalist>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Source</label>
+            <input type="text" name="source" class="form-control"
+                   placeholder="e.g. Amazon, Inventory, Supplier" list="source-options">
+            <datalist id="source-options">
+              <option value="Amazon"><option value="Inventory"><option value="Bulk Order">
+              <option value="Temu"><option value="Dollar Store">
+            </datalist>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Expected Arrival Date</label>
+            <input type="date" name="expected_arrival" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Notes</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Optional notes..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-gold">Add Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

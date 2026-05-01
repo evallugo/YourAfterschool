@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard – YAS Inventory{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0 fw-bold" style="color:var(--navy)">
+    <i class="bi bi-grid-1x2-fill me-2"></i>Dashboard
+  </h4>
+  <span class="text-muted small">{{ now.strftime('%B %d, %Y') if now else '' }}</span>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-num">{{ stats.total_items }}</div>
+      <div class="stat-label">Items in Inventory</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for('inventory') }}?low=1" class="stat-card s-gold text-decoration-none d-block">
+      <div class="stat-num">{{ stats.low_stock }}</div>
+      <div class="stat-label">Running Low — Reorder Soon</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for('inventory') }}?low=1" class="stat-card s-danger text-decoration-none d-block">
+      <div class="stat-num">{{ stats.out_of_stock }}</div>
+      <div class="stat-label">Out of Stock</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-num">{{ stats.total_lessons }}</div>
+      <div class="stat-label">Total Lessons</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for('packing') }}?status=packed" class="stat-card s-success text-decoration-none d-block">
+      <div class="stat-num">{{ stats.packed }}</div>
+      <div class="stat-label">Lessons Ready to Go ✓</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for('packing') }}?status=in_progress" class="stat-card s-gold text-decoration-none d-block">
+      <div class="stat-num">{{ stats.in_progress }}</div>
+      <div class="stat-label">Being Packed Right Now</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for('arriving') }}" class="stat-card text-decoration-none d-block">
+      <div class="stat-num">{{ stats.pending_orders }}</div>
+      <div class="stat-label">Supplies on the Way</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for('returns') }}" class="stat-card s-danger text-decoration-none d-block">
+      <div class="stat-num">{{ stats.pending_returns }}</div>
+      <div class="stat-label">Returns Waiting</div>
+    </a>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row g-3 mb-4">
+  <div class="col-auto">
+    <a href="{{ url_for('packing') }}" class="btn btn-gold btn-lg">
+      <i class="bi bi-bag-check-fill me-1"></i> Go to Packing
+    </a>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('packing_import') }}" class="btn btn-navy">
+      <i class="bi bi-upload me-1"></i> Import Master Sheet
+    </a>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('arriving') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-box-arrow-in-down me-1"></i> Log Incoming Supplies
+    </a>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('inventory_add') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-plus-circle me-1"></i> Add Inventory Item
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Incoming Orders -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-box-arrow-in-down"></i> Incoming Supplies
+        <a href="{{ url_for('arriving') }}" class="btn btn-sm ms-auto"
+           style="background:rgba(255,255,255,0.15);color:white;font-size:.75rem;">View All</a>
+      </div>
+      <div class="card-body p-0">
+        {% if incoming %}
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Expected</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for o in incoming %}
+          <tr>
+            <td class="fw-semibold">{{ o.item_description }}</td>
+            <td>{{ o.quantity }} {{ o.unit }}</td>
+            <td class="small text-muted">{{ o.expected_arrival or '—' }}</td>
+            <td>
+              {% if o.status == 'pending' %}
+              <span class="status-badge s-pending">On the Way</span>
+              {% elif o.status == 'arrived' %}
+              <span class="status-badge s-arrived">Arrived — Needs Shelving</span>
+              {% else %}
+              <span class="status-badge s-shelved">Shelved ✓</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-inbox fs-2 d-block mb-1 opacity-25"></i>
+          No incoming orders
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- School Returns -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header gold-header">
+        <i class="bi bi-arrow-return-left"></i> School Returns
+        <a href="{{ url_for('returns') }}" class="btn btn-sm ms-auto"
+           style="background:rgba(0,0,0,0.1);color:#1a1a1a;font-size:.75rem;">View All</a>
+      </div>
+      <div class="card-body p-0">
+        {% if school_returns %}
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Item</th>
+              <th>Class</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in school_returns %}
+          <tr>
+            <td class="small">{{ r.school_name or '—' }}</td>
+            <td class="fw-semibold small">{{ r.item_description }}</td>
+            <td class="text-muted small">{{ r.class_name }} {% if r.lesson_number %}#{{ r.lesson_number }}{% endif %}</td>
+            <td>
+              <a href="{{ url_for('returns') }}" class="btn btn-sm btn-outline-secondary" style="font-size:.7rem;">
+                Receive
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-check-circle fs-2 d-block mb-1 opacity-25"></i>
+          No pending returns
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
