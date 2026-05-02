@@ -6,3 +6,4 @@ openpyxl
 qrcode[pil]
 pillow
 gunicorn
+psycopg2-binary

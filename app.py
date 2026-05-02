@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import re
 import os
-import sqlite3
 import base64
 from io import BytesIO
 from datetime import datetime
 from functools import wraps
 
+import psycopg2
+import psycopg2.extras
 import pandas as pd
 import qrcode
 from flask import (Flask, render_template, redirect, url_for, request,
@@ -22,7 +23,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ──────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'yas-dev-secret-change-in-prod')
-DATABASE = os.path.join(os.path.dirname(__file__), 'yas.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://localhost/yas')
+# Railway provides postgres:// but psycopg2 requires postgresql://
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -30,11 +34,27 @@ login_manager.login_message = 'Please log in to continue.'
 login_manager.login_message_category = 'warning'
 
 
+class _DbConn:
+    """Wraps psycopg2 to behave like sqlite3 for our call patterns."""
+    def __init__(self, conn):
+        self._conn = conn
+        self._cur  = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    def execute(self, sql, params=None):
+        self._cur.execute(sql, params or ())
+        return self._cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._cur.close()
+        self._conn.close()
+
+
 def get_db():
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA foreign_keys = ON")
-    return db
+    conn = psycopg2.connect(DATABASE_URL)
+    return _DbConn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -58,7 +78,7 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(uid):
     db = get_db()
-    row = db.execute('SELECT * FROM users WHERE id = ?', [uid]).fetchone()
+    row = db.execute('SELECT * FROM users WHERE id = %s', [uid]).fetchone()
     db.close()
     return User(row) if row else None
 
@@ -116,7 +136,7 @@ def kit_label(raw: str) -> str:
 
 
 def safe_sheet_name(name: str, used: set) -> str:
-    name = re.sub(r"[:\\/?*\[\]]", "-", name)
+    name = re.sub(r"[:\/?*\[\]]", "-", name)
     name = re.sub(r"\s+", " ", name).strip()
     base = name[:31] if len(name) > 31 else name
     if not base:
@@ -334,19 +354,19 @@ def import_to_db(processed_df, db):
             pass
 
         existing = db.execute(
-            'SELECT id FROM lessons WHERE class_type=? AND class_name=? AND lesson_name=? AND lesson_number IS ?',
+            'SELECT id FROM lessons WHERE class_type=%s AND class_name=%s AND lesson_name=%s AND lesson_number=%s',
             [ctype, cname, lname, lnum_int]
         ).fetchone()
 
         if existing:
             lesson_id = existing['id']
-            db.execute('DELETE FROM lesson_items WHERE lesson_id=?', [lesson_id])
+            db.execute('DELETE FROM lesson_items WHERE lesson_id=%s', [lesson_id])
         else:
             cur = db.execute(
-                'INSERT INTO lessons (class_type, class_name, lesson_name, lesson_number) VALUES (?,?,?,?)',
+                'INSERT INTO lessons (class_type, class_name, lesson_name, lesson_number) VALUES (%s,%s,%s,%s) RETURNING id',
                 [ctype, cname, lname, lnum_int]
             )
-            lesson_id = cur.lastrowid
+            lesson_id = cur.fetchone()[0]
             new_count += 1
 
         for _, row in group.iterrows():
@@ -359,7 +379,7 @@ def import_to_db(processed_df, db):
             db.execute(
                 '''INSERT INTO lesson_items
                    (lesson_id, item_description, essentials_type, per_section_total, item_size, return_required)
-                   VALUES (?,?,?,?,?,?)''',
+                   VALUES (%s,%s,%s,%s,%s,%s)''',
                 [lesson_id, item_desc, kit or None,
                  str(row.get("Per Section total", "") or "").strip() or None,
                  str(row.get("Item Size", "")          or "").strip() or None,
@@ -380,7 +400,7 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         db  = get_db()
-        row = db.execute('SELECT * FROM users WHERE username=? AND active=1', [username]).fetchone()
+        row = db.execute('SELECT * FROM users WHERE username=%s AND active=1', [username]).fetchone()
         db.close()
         if row and check_password_hash(row['password_hash'], password):
             login_user(User(row))
@@ -408,14 +428,14 @@ def director_portal():
         return render_template('director/portal.html',
                                school=None, lessons=[], returns=[], returnable=[])
     db = get_db()
-    school = db.execute('SELECT * FROM schools WHERE id=?', [current_user.school_id]).fetchone()
+    school = db.execute('SELECT * FROM schools WHERE id=%s', [current_user.school_id]).fetchone()
     lessons = db.execute(
         '''SELECT l.*, COUNT(li.id) AS total_items,
                   SUM(CASE WHEN pl.id IS NOT NULL THEN 1 ELSE 0 END) AS packed_items
            FROM lessons l
            LEFT JOIN lesson_items li ON l.id = li.lesson_id
            LEFT JOIN packing_log pl  ON li.id = pl.lesson_item_id
-           WHERE l.school_id = ?
+           WHERE l.school_id = %s
            GROUP BY l.id
            ORDER BY l.status, l.class_name, l.lesson_number''',
         [current_user.school_id]
@@ -425,7 +445,7 @@ def director_portal():
            FROM returns r
            JOIN lesson_items li ON r.lesson_item_id = li.id
            JOIN lessons l       ON r.lesson_id      = l.id
-           WHERE r.school_id = ?
+           WHERE r.school_id = %s
            ORDER BY (r.received_at IS NOT NULL), r.logged_at DESC''',
         [current_user.school_id]
     ).fetchall()
@@ -433,7 +453,7 @@ def director_portal():
         '''SELECT li.*, l.class_name, l.lesson_number, l.id AS lesson_id
            FROM lesson_items li
            JOIN lessons l ON li.lesson_id = l.id
-           WHERE li.return_required = 1 AND l.school_id = ?
+           WHERE li.return_required = 1 AND l.school_id = %s
            ORDER BY l.class_name, l.lesson_number''',
         [current_user.school_id]
     ).fetchall()
@@ -451,10 +471,10 @@ def director_log_return():
     db             = get_db()
     lesson_item_id = request.form.get('lesson_item_id')
     expected_qty   = int(request.form.get('expected_quantity', 0) or 0)
-    li = db.execute('SELECT * FROM lesson_items WHERE id=?', [lesson_item_id]).fetchone()
+    li = db.execute('SELECT * FROM lesson_items WHERE id=%s', [lesson_item_id]).fetchone()
     if li:
         db.execute(
-            'INSERT INTO returns (lesson_id, lesson_item_id, school_id, expected_quantity, logged_by) VALUES (?,?,?,?,?)',
+            'INSERT INTO returns (lesson_id, lesson_item_id, school_id, expected_quantity, logged_by) VALUES (%s,%s,%s,%s,%s)',
             [li['lesson_id'], lesson_item_id, current_user.school_id, expected_qty, current_user.id]
         )
         db.commit()
@@ -515,10 +535,10 @@ def inventory():
 
     where, params = [], []
     if q:
-        where.append('(i.name LIKE ? OR i.description LIKE ?)')
+        where.append('(i.name LIKE %s OR i.description LIKE %s)')
         params += [f'%{q}%', f'%{q}%']
     if cat_id:
-        where.append('ic.category_id = ?')
+        where.append('ic.category_id = %s')
         params.append(cat_id)
     wc = ('WHERE ' + ' AND '.join(where)) if where else ''
 
@@ -528,7 +548,7 @@ def inventory():
     ).fetchone()[0]
     items = db.execute(
         f'''SELECT i.*, sc.name AS subcategory_name,
-                   GROUP_CONCAT(DISTINCT c.name) AS category_names
+                   STRING_AGG(DISTINCT c.name, ',') AS category_names
             FROM items i
             LEFT JOIN item_categories ic ON i.id = ic.item_id
             LEFT JOIN categories c       ON ic.category_id = c.id
@@ -536,7 +556,7 @@ def inventory():
             {wc}
             GROUP BY i.id
             ORDER BY i.name
-            LIMIT ? OFFSET ?''',
+            LIMIT %s OFFSET %s''',
         params + [per_page, (page - 1) * per_page]
     ).fetchall()
     categories = db.execute('SELECT * FROM categories ORDER BY name').fetchall()
@@ -569,12 +589,13 @@ def inventory_add():
             flash('Item name is required.', 'danger')
         else:
             cur = db.execute(
-                'INSERT INTO items (name, description, unit, is_reusable, quantity, location, subcategory_id) VALUES (?,?,?,?,?,?,?)',
+                'INSERT INTO items (name, description, unit, is_reusable, quantity, location, subcategory_id) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id',
                 [name, description, unit, is_reusable, quantity, location, subcategory_id]
             )
+            new_item_id = cur.fetchone()[0]
             for cid in selected_cats:
-                db.execute('INSERT OR IGNORE INTO item_categories (item_id, category_id) VALUES (?,?)',
-                           [cur.lastrowid, cid])
+                db.execute('INSERT INTO item_categories (item_id, category_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',
+                           [new_item_id, cid])
             db.commit()
             db.close()
             flash(f'Item "{name}" added.', 'success')
@@ -589,7 +610,7 @@ def inventory_add():
 @role_required('admin', 'packer')
 def inventory_edit(item_id):
     db   = get_db()
-    item = db.execute('SELECT * FROM items WHERE id=?', [item_id]).fetchone()
+    item = db.execute('SELECT * FROM items WHERE id=%s', [item_id]).fetchone()
     if not item:
         flash('Item not found.', 'danger')
         db.close()
@@ -600,7 +621,7 @@ def inventory_edit(item_id):
         'SELECT sc.*, c.name AS cat_name FROM subcategories sc JOIN categories c ON sc.category_id=c.id ORDER BY c.name, sc.name'
     ).fetchall()
     selected_cats = [str(r['category_id']) for r in
-                     db.execute('SELECT category_id FROM item_categories WHERE item_id=?', [item_id]).fetchall()]
+                     db.execute('SELECT category_id FROM item_categories WHERE item_id=%s', [item_id]).fetchall()]
 
     if request.method == 'POST':
         name           = request.form.get('name', '').strip()
@@ -615,12 +636,12 @@ def inventory_edit(item_id):
             flash('Item name is required.', 'danger')
         else:
             db.execute(
-                'UPDATE items SET name=?,description=?,unit=?,is_reusable=?,quantity=?,location=?,subcategory_id=? WHERE id=?',
+                'UPDATE items SET name=%s,description=%s,unit=%s,is_reusable=%s,quantity=%s,location=%s,subcategory_id=%s WHERE id=%s',
                 [name, description, unit, is_reusable, quantity, location, subcategory_id, item_id]
             )
-            db.execute('DELETE FROM item_categories WHERE item_id=?', [item_id])
+            db.execute('DELETE FROM item_categories WHERE item_id=%s', [item_id])
             for cid in new_cats:
-                db.execute('INSERT OR IGNORE INTO item_categories (item_id, category_id) VALUES (?,?)',
+                db.execute('INSERT INTO item_categories (item_id, category_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',
                            [item_id, cid])
             db.commit()
             db.close()
@@ -637,10 +658,10 @@ def inventory_edit(item_id):
 @role_required('admin')
 def inventory_delete(item_id):
     db   = get_db()
-    item = db.execute('SELECT name FROM items WHERE id=?', [item_id]).fetchone()
+    item = db.execute('SELECT name FROM items WHERE id=%s', [item_id]).fetchone()
     if item:
-        db.execute('DELETE FROM item_categories WHERE item_id=?', [item_id])
-        db.execute('DELETE FROM items WHERE id=?', [item_id])
+        db.execute('DELETE FROM item_categories WHERE item_id=%s', [item_id])
+        db.execute('DELETE FROM items WHERE id=%s', [item_id])
         db.commit()
         flash(f'"{item["name"]}" deleted.', 'success')
     db.close()
@@ -698,24 +719,24 @@ def inventory_import():
                     reusable = 1 if rv in ['yes', 'y', '1', 'true', 'x'] else 0
                 cat_name  = str(row.get(cat_col, '') or '').strip().lower() if cat_col else ''
 
-                existing = db.execute('SELECT id FROM items WHERE name=?', [name]).fetchone()
+                existing = db.execute('SELECT id FROM items WHERE name=%s', [name]).fetchone()
                 if existing:
                     db.execute(
-                        'UPDATE items SET quantity=quantity+?, unit=?, location=COALESCE(?,location), is_reusable=? WHERE id=?',
+                        'UPDATE items SET quantity=quantity+%s, unit=%s, location=COALESCE(%s,location), is_reusable=%s WHERE id=%s',
                         [qty, unit, location or None, reusable, existing['id']]
                     )
                     updated += 1
                     item_id = existing['id']
                 else:
                     cur = db.execute(
-                        'INSERT INTO items (name, description, unit, is_reusable, quantity, location) VALUES (?,?,?,?,?,?)',
+                        'INSERT INTO items (name, description, unit, is_reusable, quantity, location) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
                         [name, desc or None, unit, reusable, qty, location or None]
                     )
-                    item_id = cur.lastrowid
+                    item_id = cur.fetchone()[0]
                     created += 1
 
                 if cat_name and cat_name in categories:
-                    db.execute('INSERT OR IGNORE INTO item_categories (item_id, category_id) VALUES (?,?)',
+                    db.execute('INSERT INTO item_categories (item_id, category_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',
                                [item_id, categories[cat_name]])
 
             db.commit()
@@ -743,9 +764,9 @@ def inventory_auto_create():
         desc = row['item_description'].strip()
         if not desc:
             continue
-        existing = db.execute('SELECT id FROM items WHERE name=?', [desc]).fetchone()
+        existing = db.execute('SELECT id FROM items WHERE name=%s', [desc]).fetchone()
         if not existing:
-            db.execute('INSERT INTO items (name, quantity, unit) VALUES (?,0,?)', [desc, 'pcs'])
+            db.execute('INSERT INTO items (name, quantity, unit) VALUES (%s,0,%s)', [desc, 'pcs'])
             created += 1
     db.commit()
     db.close()
@@ -758,9 +779,9 @@ def inventory_auto_create():
 def inventory_adjust(item_id):
     delta = int(request.form.get('delta', 0) or 0)
     db = get_db()
-    db.execute('UPDATE items SET quantity = MAX(0, quantity + ?) WHERE id=?', [delta, item_id])
+    db.execute('UPDATE items SET quantity = GREATEST(0, quantity + %s) WHERE id=%s', [delta, item_id])
     db.commit()
-    new_qty = db.execute('SELECT quantity FROM items WHERE id=?', [item_id]).fetchone()['quantity']
+    new_qty = db.execute('SELECT quantity FROM items WHERE id=%s', [item_id]).fetchone()['quantity']
     db.close()
     return jsonify({'quantity': new_qty})
 
@@ -775,26 +796,26 @@ def manage_categories():
             name = request.form.get('name', '').strip()
             if name:
                 try:
-                    db.execute('INSERT INTO categories (name) VALUES (?)', [name])
+                    db.execute('INSERT INTO categories (name) VALUES (%s)', [name])
                     db.commit()
                     flash(f'Category "{name}" added.', 'success')
-                except sqlite3.IntegrityError:
+                except psycopg2.IntegrityError:
                     flash('Category already exists.', 'warning')
         elif action == 'add_subcategory':
             cid  = request.form.get('category_id')
             name = request.form.get('subname', '').strip()
             if cid and name:
-                db.execute('INSERT INTO subcategories (category_id, name) VALUES (?,?)', [cid, name])
+                db.execute('INSERT INTO subcategories (category_id, name) VALUES (%s,%s)', [cid, name])
                 db.commit()
                 flash(f'Subcategory "{name}" added.', 'success')
         elif action == 'delete_category':
             cid = request.form.get('cat_id')
-            db.execute('DELETE FROM categories WHERE id=?', [cid])
+            db.execute('DELETE FROM categories WHERE id=%s', [cid])
             db.commit()
             flash('Category deleted.', 'success')
         elif action == 'delete_subcategory':
             sid = request.form.get('sub_id')
-            db.execute('DELETE FROM subcategories WHERE id=?', [sid])
+            db.execute('DELETE FROM subcategories WHERE id=%s', [sid])
             db.commit()
             flash('Subcategory deleted.', 'success')
     categories    = db.execute('SELECT * FROM categories ORDER BY name').fetchall()
@@ -820,13 +841,13 @@ def packing():
 
     where, params = [], []
     if school_id:
-        where.append('l.school_id = ?'); params.append(school_id)
+        where.append('l.school_id = %s'); params.append(school_id)
     if class_name:
-        where.append('l.class_name = ?'); params.append(class_name)
+        where.append('l.class_name = %s'); params.append(class_name)
     if status:
-        where.append('l.status = ?'); params.append(status)
+        where.append('l.status = %s'); params.append(status)
     if q:
-        where.append('(l.class_name LIKE ? OR l.lesson_name LIKE ?)'); params += [f'%{q}%', f'%{q}%']
+        where.append('(l.class_name LIKE %s OR l.lesson_name LIKE %s)'); params += [f'%{q}%', f'%{q}%']
     wc = ('WHERE ' + ' AND '.join(where)) if where else ''
 
     lessons = db.execute(f'''
@@ -846,7 +867,7 @@ def packing():
     schools     = db.execute('SELECT * FROM schools ORDER BY name').fetchall()
     class_names = db.execute('SELECT DISTINCT class_name FROM lessons ORDER BY class_name').fetchall()
     low_stock   = db.execute(
-        '''SELECT i.*, GROUP_CONCAT(DISTINCT c.name) AS category_names
+        '''SELECT i.*, STRING_AGG(DISTINCT c.name, ',') AS category_names
            FROM items i
            LEFT JOIN item_categories ic ON i.id = ic.item_id
            LEFT JOIN categories c       ON ic.category_id = c.id
@@ -938,7 +959,7 @@ def packing_download_last():
 def packing_lesson(lesson_id):
     db     = get_db()
     lesson = db.execute(
-        'SELECT l.*, s.name AS school_name FROM lessons l LEFT JOIN schools s ON l.school_id=s.id WHERE l.id=?',
+        'SELECT l.*, s.name AS school_name FROM lessons l LEFT JOIN schools s ON l.school_id=s.id WHERE l.id=%s',
         [lesson_id]
     ).fetchone()
     if not lesson:
@@ -954,7 +975,7 @@ def packing_lesson(lesson_id):
            FROM lesson_items li
            LEFT JOIN packing_log pl ON li.id = pl.lesson_item_id
            LEFT JOIN users u        ON pl.packed_by = u.id
-           WHERE li.lesson_id = ?
+           WHERE li.lesson_id = %s
            ORDER BY li.return_required DESC, li.essentials_type NULLS LAST, li.item_description''',
         [lesson_id]
     ).fetchall()
@@ -975,29 +996,29 @@ def packing_toggle(lesson_id):
     item_id = request.json.get('item_id')
     db      = get_db()
     # Verify this item actually belongs to this lesson
-    if not db.execute('SELECT id FROM lesson_items WHERE id=? AND lesson_id=?',
+    if not db.execute('SELECT id FROM lesson_items WHERE id=%s AND lesson_id=%s',
                       [item_id, lesson_id]).fetchone():
         db.close()
         return jsonify({'error': 'invalid item for this lesson'}), 400
-    existing = db.execute('SELECT * FROM packing_log WHERE lesson_item_id=?', [item_id]).fetchone()
+    existing = db.execute('SELECT * FROM packing_log WHERE lesson_item_id=%s', [item_id]).fetchone()
     if existing:
         new_state = 0 if existing['is_packed'] else 1
         db.execute(
-            'UPDATE packing_log SET is_packed=?, packed_by=?, packed_at=? WHERE lesson_item_id=?',
+            'UPDATE packing_log SET is_packed=%s, packed_by=%s, packed_at=%s WHERE lesson_item_id=%s',
             [new_state, current_user.id,
              datetime.now().isoformat() if new_state else None, item_id]
         )
     else:
         db.execute(
-            'INSERT INTO packing_log (lesson_id, lesson_item_id, is_packed, packed_by, packed_at) VALUES (?,?,1,?,?)',
+            'INSERT INTO packing_log (lesson_id, lesson_item_id, is_packed, packed_by, packed_at) VALUES (%s,%s,1,%s,%s)',
             [lesson_id, item_id, current_user.id, datetime.now().isoformat()]
         )
         new_state = 1
 
-    total  = db.execute('SELECT COUNT(*) FROM lesson_items WHERE lesson_id=?', [lesson_id]).fetchone()[0]
-    packed = db.execute('SELECT COUNT(*) FROM packing_log WHERE lesson_id=? AND is_packed=1', [lesson_id]).fetchone()[0]
+    total  = db.execute('SELECT COUNT(*) FROM lesson_items WHERE lesson_id=%s', [lesson_id]).fetchone()[0]
+    packed = db.execute('SELECT COUNT(*) FROM packing_log WHERE lesson_id=%s AND is_packed=1', [lesson_id]).fetchone()[0]
     status = 'unpacked' if packed == 0 else ('packed' if packed >= total else 'in_progress')
-    db.execute('UPDATE lessons SET status=? WHERE id=?', [status, lesson_id])
+    db.execute('UPDATE lessons SET status=%s WHERE id=%s', [status, lesson_id])
     db.commit()
     db.close()
     return jsonify({'is_packed': bool(new_state), 'status': status, 'packed': packed, 'total': total})
@@ -1008,14 +1029,14 @@ def packing_toggle(lesson_id):
 def packing_lesson_print(lesson_id):
     db     = get_db()
     lesson = db.execute(
-        'SELECT l.*, s.name AS school_name FROM lessons l LEFT JOIN schools s ON l.school_id=s.id WHERE l.id=?',
+        'SELECT l.*, s.name AS school_name FROM lessons l LEFT JOIN schools s ON l.school_id=s.id WHERE l.id=%s',
         [lesson_id]
     ).fetchone()
     items  = db.execute(
         '''SELECT li.*, COALESCE(pl.is_packed, 0) AS is_packed
            FROM lesson_items li
            LEFT JOIN packing_log pl ON li.id = pl.lesson_item_id
-           WHERE li.lesson_id=?
+           WHERE li.lesson_id=%s
            ORDER BY li.return_required DESC, li.essentials_type NULLS LAST, li.item_description''',
         [lesson_id]
     ).fetchall()
@@ -1040,7 +1061,7 @@ def packing_assign(lesson_id):
     school_id    = request.form.get('school_id') or None
     teacher_name = request.form.get('teacher_name', '').strip() or None
     db = get_db()
-    db.execute('UPDATE lessons SET school_id=?, teacher_name=? WHERE id=?',
+    db.execute('UPDATE lessons SET school_id=%s, teacher_name=%s WHERE id=%s',
                [school_id, teacher_name, lesson_id])
     db.commit()
     db.close()
@@ -1080,12 +1101,12 @@ def arriving_add():
     expected    = request.form.get('expected_arrival', '').strip() or None
     notes       = request.form.get('notes', '').strip() or None
     if not item_desc and item_id:
-        row = db.execute('SELECT name FROM items WHERE id=?', [item_id]).fetchone()
+        row = db.execute('SELECT name FROM items WHERE id=%s', [item_id]).fetchone()
         if row:
             item_desc = row['name']
     if item_desc and quantity > 0:
         db.execute(
-            'INSERT INTO incoming_orders (item_id, item_description, quantity, unit, source, expected_arrival, notes) VALUES (?,?,?,?,?,?,?)',
+            'INSERT INTO incoming_orders (item_id, item_description, quantity, unit, source, expected_arrival, notes) VALUES (%s,%s,%s,%s,%s,%s,%s)',
             [item_id, item_desc, quantity, unit, source, expected, notes]
         )
         db.commit()
@@ -1101,7 +1122,7 @@ def arriving_add():
 def arriving_mark_arrived(order_id):
     db = get_db()
     updated = db.execute(
-        "UPDATE incoming_orders SET status='arrived', actual_arrival=? WHERE id=? AND status='pending'",
+        "UPDATE incoming_orders SET status='arrived', actual_arrival=%s WHERE id=%s AND status='pending'",
         [datetime.now().strftime('%Y-%m-%d'), order_id]
     ).rowcount
     db.commit()
@@ -1118,16 +1139,16 @@ def arriving_mark_arrived(order_id):
 def arriving_shelve(order_id):
     db    = get_db()
     order = db.execute(
-        "SELECT * FROM incoming_orders WHERE id=? AND status='arrived'", [order_id]
+        "SELECT * FROM incoming_orders WHERE id=%s AND status='arrived'", [order_id]
     ).fetchone()
     if not order:
         db.close()
         flash('This order must be marked as arrived before it can be shelved.', 'warning')
         return redirect(url_for('arriving'))
     if order['item_id']:
-        db.execute('UPDATE items SET quantity = quantity + ? WHERE id=?',
+        db.execute('UPDATE items SET quantity = quantity + %s WHERE id=%s',
                    [order['quantity'], order['item_id']])
-    db.execute("UPDATE incoming_orders SET status='shelved' WHERE id=?", [order_id])
+    db.execute("UPDATE incoming_orders SET status='shelved' WHERE id=%s", [order_id])
     db.commit()
     db.close()
     flash('Order shelved and inventory updated.' if order['item_id']
@@ -1161,7 +1182,7 @@ def schools_add():
         notes   = request.form.get('notes', '').strip() or None
         if name:
             db = get_db()
-            db.execute('INSERT INTO schools (name, address, notes) VALUES (?,?,?)',
+            db.execute('INSERT INTO schools (name, address, notes) VALUES (%s,%s,%s)',
                        [name, address, notes])
             db.commit()
             db.close()
@@ -1175,18 +1196,18 @@ def schools_add():
 @warehouse_only
 def school_detail(school_id):
     db     = get_db()
-    school = db.execute('SELECT * FROM schools WHERE id=?', [school_id]).fetchone()
+    school = db.execute('SELECT * FROM schools WHERE id=%s', [school_id]).fetchone()
     if not school:
         flash('School not found.', 'danger')
         db.close()
         return redirect(url_for('schools'))
     if request.method == 'POST':
         notes = request.form.get('notes', '').strip()
-        db.execute('UPDATE schools SET notes=? WHERE id=?', [notes, school_id])
+        db.execute('UPDATE schools SET notes=%s WHERE id=%s', [notes, school_id])
         db.commit()
         flash('Notes saved.', 'success')
     lessons = db.execute(
-        'SELECT * FROM lessons WHERE school_id=? ORDER BY class_name, lesson_number',
+        'SELECT * FROM lessons WHERE school_id=%s ORDER BY class_name, lesson_number',
         [school_id]
     ).fetchall()
     pending_returns = db.execute(
@@ -1194,7 +1215,7 @@ def school_detail(school_id):
            FROM returns r
            JOIN lesson_items li ON r.lesson_item_id = li.id
            JOIN lessons l       ON r.lesson_id      = l.id
-           WHERE r.school_id=? AND r.received_at IS NULL
+           WHERE r.school_id=%s AND r.received_at IS NULL
            ORDER BY r.logged_at DESC''',
         [school_id]
     ).fetchall()
@@ -1207,10 +1228,10 @@ def school_detail(school_id):
 @role_required('admin')
 def school_edit(school_id):
     db     = get_db()
-    school = db.execute('SELECT * FROM schools WHERE id=?', [school_id]).fetchone()
+    school = db.execute('SELECT * FROM schools WHERE id=%s', [school_id]).fetchone()
     if request.method == 'POST':
         db.execute(
-            'UPDATE schools SET name=?, address=?, notes=?, active=? WHERE id=?',
+            'UPDATE schools SET name=%s, address=%s, notes=%s, active=%s WHERE id=%s',
             [request.form.get('name', '').strip(),
              request.form.get('address', '').strip() or None,
              request.form.get('notes', '').strip() or None,
@@ -1265,10 +1286,10 @@ def returns_log():
     lesson_item_id = request.form.get('lesson_item_id')
     school_id      = request.form.get('school_id') or None
     expected_qty   = int(request.form.get('expected_quantity', 0) or 0)
-    li = db.execute('SELECT * FROM lesson_items WHERE id=?', [lesson_item_id]).fetchone()
+    li = db.execute('SELECT * FROM lesson_items WHERE id=%s', [lesson_item_id]).fetchone()
     if li:
         db.execute(
-            'INSERT INTO returns (lesson_id, lesson_item_id, school_id, expected_quantity, logged_by) VALUES (?,?,?,?,?)',
+            'INSERT INTO returns (lesson_id, lesson_item_id, school_id, expected_quantity, logged_by) VALUES (%s,%s,%s,%s,%s)',
             [li['lesson_id'], lesson_item_id, school_id, expected_qty, current_user.id]
         )
         db.commit()
@@ -1288,22 +1309,22 @@ def returns_receive(return_id):
         db.close()
         return redirect(url_for('returns'))
 
-    r = db.execute('SELECT * FROM returns WHERE id=?', [return_id]).fetchone()
+    r = db.execute('SELECT * FROM returns WHERE id=%s', [return_id]).fetchone()
     if r:
         expected_qty = r['expected_quantity'] or 0
 
         # Mark this return as received with however many actually arrived
         db.execute(
-            'UPDATE returns SET received_quantity=?, received_by=?, received_at=? WHERE id=?',
+            'UPDATE returns SET received_quantity=%s, received_by=%s, received_at=%s WHERE id=%s',
             [received_qty, current_user.id, datetime.now().isoformat(), return_id]
         )
 
         # Add to inventory if item is linked
-        li = db.execute('SELECT * FROM lesson_items WHERE id=?', [r['lesson_item_id']]).fetchone()
+        li = db.execute('SELECT * FROM lesson_items WHERE id=%s', [r['lesson_item_id']]).fetchone()
         if li and li['item_id']:
-            db.execute('UPDATE items SET quantity = quantity + ? WHERE id=?',
+            db.execute('UPDATE items SET quantity = quantity + %s WHERE id=%s',
                        [received_qty, li['item_id']])
-            db.execute('UPDATE returns SET readded_to_inventory=1 WHERE id=?', [return_id])
+            db.execute('UPDATE returns SET readded_to_inventory=1 WHERE id=%s', [return_id])
 
         # If partial — create a new pending return for the remainder
         remainder = expected_qty - received_qty
@@ -1311,7 +1332,7 @@ def returns_receive(return_id):
             db.execute(
                 '''INSERT INTO returns
                    (lesson_id, lesson_item_id, school_id, expected_quantity, logged_by)
-                   VALUES (?,?,?,?,?)''',
+                   VALUES (%s,%s,%s,%s,%s)''',
                 [r['lesson_id'], r['lesson_item_id'], r['school_id'],
                  remainder, current_user.id]
             )
@@ -1337,12 +1358,12 @@ def returns_receive(return_id):
 @role_required('admin', 'packer')
 def returns_write_off(return_id):
     db = get_db()
-    r  = db.execute('SELECT * FROM returns WHERE id=?', [return_id]).fetchone()
+    r  = db.execute('SELECT * FROM returns WHERE id=%s', [return_id]).fetchone()
     if r:
         db.execute(
             '''UPDATE returns
-               SET received_quantity=0, received_by=?, received_at=?, written_off=1
-               WHERE id=?''',
+               SET received_quantity=0, received_by=%s, received_at=%s, written_off=1
+               WHERE id=%s''',
             [current_user.id, datetime.now().isoformat(), return_id]
         )
         db.commit()
@@ -1380,12 +1401,12 @@ def admin_users_add():
     else:
         try:
             db.execute(
-                'INSERT INTO users (username, password_hash, full_name, role, school_id) VALUES (?,?,?,?,?)',
+                'INSERT INTO users (username, password_hash, full_name, role, school_id) VALUES (%s,%s,%s,%s,%s)',
                 [username, generate_password_hash(password), full_name, role, school_id]
             )
             db.commit()
             flash(f'User "{username}" created.', 'success')
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
             flash('Username already exists.', 'danger')
     db.close()
     return redirect(url_for('admin_users'))
@@ -1397,7 +1418,7 @@ def admin_reset_password(user_id):
     new_pw = request.form.get('password', '').strip()
     if new_pw:
         db = get_db()
-        db.execute('UPDATE users SET password_hash=? WHERE id=?',
+        db.execute('UPDATE users SET password_hash=%s WHERE id=%s',
                    [generate_password_hash(new_pw), user_id])
         db.commit()
         db.close()
@@ -1412,9 +1433,9 @@ def admin_users_toggle(user_id):
         flash("You can't deactivate your own account.", 'danger')
         return redirect(url_for('admin_users'))
     db  = get_db()
-    cur = db.execute('SELECT active FROM users WHERE id=?', [user_id]).fetchone()
+    cur = db.execute('SELECT active FROM users WHERE id=%s', [user_id]).fetchone()
     if cur:
-        db.execute('UPDATE users SET active=? WHERE id=?', [0 if cur['active'] else 1, user_id])
+        db.execute('UPDATE users SET active=%s WHERE id=%s', [0 if cur['active'] else 1, user_id])
         db.commit()
     db.close()
     flash('User status updated.', 'success')
@@ -1428,7 +1449,7 @@ def admin_users_delete(user_id):
         flash("You can't delete your own account.", 'danger')
         return redirect(url_for('admin_users'))
     db = get_db()
-    db.execute('DELETE FROM users WHERE id=?', [user_id])
+    db.execute('DELETE FROM users WHERE id=%s', [user_id])
     db.commit()
     db.close()
     flash('User deleted.', 'success')
@@ -1440,7 +1461,7 @@ def admin_users_delete(user_id):
 def admin_assign_school(user_id):
     school_id = request.form.get('school_id') or None
     db = get_db()
-    db.execute('UPDATE users SET school_id=? WHERE id=?', [school_id, user_id])
+    db.execute('UPDATE users SET school_id=%s WHERE id=%s', [school_id, user_id])
     db.commit()
     db.close()
     flash('School assignment updated.', 'success')
@@ -1451,6 +1472,4 @@ def admin_assign_school(user_id):
 # Main
 # ──────────────────────────────────────────────────────────
 if __name__ == '__main__':
-    if not os.path.exists(DATABASE):
-        print("No database found. Run:  python init_db.py")
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)))

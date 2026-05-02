@@ -1,15 +1,30 @@
 """Populate the database with realistic sample data."""
 from __future__ import annotations
-import sqlite3, os
+import os
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, date, timedelta
 from werkzeug.security import generate_password_hash
 
-DATABASE = os.path.join(os.path.dirname(__file__), 'yas.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://localhost/yas')
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+class _DbConn:
+    def __init__(self, conn):
+        self._conn = conn
+        self._cur  = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    def execute(self, sql, params=None):
+        self._cur.execute(sql, params or ())
+        return self._cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._cur.close()
+        self._conn.close()
 
 def seed():
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA foreign_keys = ON")
+    db = _DbConn(psycopg2.connect(DATABASE_URL))
 
     # ── Users ──────────────────────────────────────────────────────────────
     users = [
@@ -21,10 +36,10 @@ def seed():
         ('director2','director123', 'Tom Walsh',           'site_director', None),
     ]
     for username, pw, name, role, school_id in users:
-        existing = db.execute('SELECT id FROM users WHERE username=?', [username]).fetchone()
+        existing = db.execute('SELECT id FROM users WHERE username=%s', [username]).fetchone()
         if not existing:
             db.execute(
-                'INSERT INTO users (username, password_hash, full_name, role, school_id) VALUES (?,?,?,?,?)',
+                'INSERT INTO users (username, password_hash, full_name, role, school_id) VALUES (%s,%s,%s,%s,%s)',
                 [username, generate_password_hash(pw), name, role, school_id]
             )
 
@@ -40,13 +55,13 @@ def seed():
     ]
     school_ids = {}
     for name, address, notes in schools_data:
-        existing = db.execute('SELECT id FROM schools WHERE name=?', [name]).fetchone()
+        existing = db.execute('SELECT id FROM schools WHERE name=%s', [name]).fetchone()
         if existing:
             school_ids[name] = existing['id']
         else:
-            cur = db.execute('INSERT INTO schools (name, address, notes) VALUES (?,?,?)',
+            cur = db.execute('INSERT INTO schools (name, address, notes) VALUES (%s,%s,%s) RETURNING id',
                              [name, address, notes])
-            school_ids[name] = cur.lastrowid
+            school_ids[name] = cur.fetchone()[0]
 
     # ── Categories (schema seeds these, just grab ids) ──────────────────────
     cat_ids = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM categories').fetchall()}
@@ -64,15 +79,15 @@ def seed():
     subcat_ids = {}
     for cat_name, sub_name in subcats:
         existing = db.execute(
-            'SELECT id FROM subcategories WHERE name=? AND category_id=?',
+            'SELECT id FROM subcategories WHERE name=%s AND category_id=%s',
             [sub_name, cat_ids[cat_name]]
         ).fetchone()
         if existing:
             subcat_ids[sub_name] = existing['id']
         else:
-            cur = db.execute('INSERT INTO subcategories (category_id, name) VALUES (?,?)',
+            cur = db.execute('INSERT INTO subcategories (category_id, name) VALUES (%s,%s) RETURNING id',
                              [cat_ids[cat_name], sub_name])
-            subcat_ids[sub_name] = cur.lastrowid
+            subcat_ids[sub_name] = cur.fetchone()[0]
 
     # ── Inventory items ──────────────────────────────────────────────────────
     items_data = [
@@ -106,18 +121,18 @@ def seed():
     item_ids = {}
     for row in items_data:
         name, desc, unit, reusable, qty, location, categories = row
-        existing = db.execute('SELECT id FROM items WHERE name=?', [name]).fetchone()
+        existing = db.execute('SELECT id FROM items WHERE name=%s', [name]).fetchone()
         if existing:
             item_ids[name] = existing['id']
         else:
             cur = db.execute(
-                'INSERT INTO items (name, description, unit, is_reusable, quantity, location) VALUES (?,?,?,?,?,?)',
+                'INSERT INTO items (name, description, unit, is_reusable, quantity, location) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
                 [name, desc, unit, reusable, qty, location]
             )
-            item_ids[name] = cur.lastrowid
+            item_ids[name] = cur.fetchone()[0]
             for cat_name in categories:
                 if cat_name in cat_ids:
-                    db.execute('INSERT OR IGNORE INTO item_categories (item_id, category_id) VALUES (?,?)',
+                    db.execute('INSERT INTO item_categories (item_id, category_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',
                                [item_ids[name], cat_ids[cat_name]])
 
     # ── Lessons ──────────────────────────────────────────────────────────────
@@ -144,7 +159,7 @@ def seed():
         school_id = school_ids.get(school_name)
         key = (class_name, lesson_name, lesson_num, school_name)
         existing = db.execute(
-            'SELECT id FROM lessons WHERE class_name=? AND lesson_name=? AND lesson_number IS ? AND school_id=?',
+            'SELECT id FROM lessons WHERE class_name=%s AND lesson_name=%s AND lesson_number=%s AND school_id=%s',
             [class_name, lesson_name, lesson_num, school_id]
         ).fetchone()
         if existing:
@@ -153,10 +168,10 @@ def seed():
             cur = db.execute(
                 '''INSERT INTO lessons
                    (class_type, class_name, lesson_name, lesson_number, school_id, teacher_name, status, pack_to)
-                   VALUES (?,?,?,?,?,?,?,?)''',
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
                 [class_type, class_name, lesson_name, lesson_num, school_id, teacher, status, pack_to]
             )
-            lesson_ids[key] = cur.lastrowid
+            lesson_ids[key] = cur.fetchone()[0]
 
     # ── Lesson Items ──────────────────────────────────────────────────────────
     # (lesson_key, item_description, essentials_type, per_section_total, item_size, return_required)
@@ -295,22 +310,22 @@ def seed():
             continue
         for item_desc, essentials_type, per_section, item_size, return_req in items:
             existing = db.execute(
-                'SELECT id FROM lesson_items WHERE lesson_id=? AND item_description=?',
+                'SELECT id FROM lesson_items WHERE lesson_id=%s AND item_description=%s',
                 [lesson_id, item_desc]
             ).fetchone()
             if existing:
                 lesson_item_ids[(lesson_id, item_desc)] = existing['id']
             else:
                 # Try to link to inventory item
-                inv_item = db.execute('SELECT id FROM items WHERE name=?', [item_desc]).fetchone()
+                inv_item = db.execute('SELECT id FROM items WHERE name=%s', [item_desc]).fetchone()
                 cur = db.execute(
                     '''INSERT INTO lesson_items
                        (lesson_id, item_id, item_description, essentials_type, per_section_total, item_size, return_required)
-                       VALUES (?,?,?,?,?,?,?)''',
+                       VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
                     [lesson_id, inv_item['id'] if inv_item else None,
                      item_desc, essentials_type, per_section, item_size, return_req]
                 )
-                lesson_item_ids[(lesson_id, item_desc)] = cur.lastrowid
+                lesson_item_ids[(lesson_id, item_desc)] = cur.fetchone()[0]
 
     # ── Packing Log (mark items packed for 'packed' and 'in_progress' lessons) ──
     packer_id = db.execute("SELECT id FROM users WHERE username='marcus'").fetchone()['id']
@@ -320,7 +335,7 @@ def seed():
         lesson_id = lesson_ids.get(key)
         if not lesson_id:
             continue
-        lesson = db.execute('SELECT status FROM lessons WHERE id=?', [lesson_id]).fetchone()
+        lesson = db.execute('SELECT status FROM lessons WHERE id=%s', [lesson_id]).fetchone()
         if not lesson:
             continue
 
@@ -328,7 +343,7 @@ def seed():
             li_id = lesson_item_ids.get((lesson_id, item_desc))
             if not li_id:
                 continue
-            existing = db.execute('SELECT id FROM packing_log WHERE lesson_item_id=?', [li_id]).fetchone()
+            existing = db.execute('SELECT id FROM packing_log WHERE lesson_item_id=%s', [li_id]).fetchone()
             if existing:
                 continue
             if lesson['status'] == 'packed':
@@ -343,7 +358,7 @@ def seed():
                 db.execute(
                     '''INSERT INTO packing_log
                        (lesson_id, lesson_item_id, is_packed, packed_by, packed_at)
-                       VALUES (?,?,?,?,?)''',
+                       VALUES (%s,%s,%s,%s,%s)''',
                     [lesson_id, li_id, is_packed,
                      packer_id if is_packed else None,
                      packed_at if is_packed else None]
@@ -362,16 +377,16 @@ def seed():
         ('Tissue Paper',   200,'sheets','Bulk Order',   str(today + timedelta(days=7)), None,              'pending',  'Spring session restock'),
     ]
     for item_name, qty, unit, source, expected, actual, status, notes in orders_data:
-        inv = db.execute('SELECT id FROM items WHERE name=?', [item_name]).fetchone()
+        inv = db.execute('SELECT id FROM items WHERE name=%s', [item_name]).fetchone()
         existing = db.execute(
-            'SELECT id FROM incoming_orders WHERE item_description=? AND status=?',
+            'SELECT id FROM incoming_orders WHERE item_description=%s AND status=%s',
             [item_name, status]
         ).fetchone()
         if not existing:
             db.execute(
                 '''INSERT INTO incoming_orders
                    (item_id, item_description, quantity, unit, source, expected_arrival, actual_arrival, status, notes)
-                   VALUES (?,?,?,?,?,?,?,?,?)''',
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                 [inv['id'] if inv else None, item_name, qty, unit,
                  source, expected, actual, status, notes]
             )
@@ -407,13 +422,13 @@ def seed():
         if not lesson_id:
             continue
         li = db.execute(
-            'SELECT id FROM lesson_items WHERE lesson_id=? AND item_description=?',
+            'SELECT id FROM lesson_items WHERE lesson_id=%s AND item_description=%s',
             [lesson_id, item_desc]
         ).fetchone()
         if not li:
             continue
         existing = db.execute(
-            'SELECT id FROM returns WHERE lesson_id=? AND lesson_item_id=?',
+            'SELECT id FROM returns WHERE lesson_id=%s AND lesson_item_id=%s',
             [lesson_id, li['id']]
         ).fetchone()
         if existing:
@@ -424,7 +439,7 @@ def seed():
                 '''INSERT INTO returns
                    (lesson_id, lesson_item_id, school_id, expected_quantity, received_quantity,
                     logged_by, logged_at, received_by, received_at, readded_to_inventory)
-                   VALUES (?,?,?,?,?,?,?,?,?,1)''',
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,1)''',
                 [lesson_id, li['id'], school_id, exp_qty, rec_qty,
                  director_id, logged_ago, packer_id2, received_ago]
             )
@@ -433,7 +448,7 @@ def seed():
                 '''INSERT INTO returns
                    (lesson_id, lesson_item_id, school_id, expected_quantity,
                     logged_by, logged_at)
-                   VALUES (?,?,?,?,?,?)''',
+                   VALUES (%s,%s,%s,%s,%s,%s)''',
                 [lesson_id, li['id'], school_id, exp_qty, director_id, logged_ago]
             )
 
